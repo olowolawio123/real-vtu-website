@@ -86,21 +86,25 @@ router.post("/recover-payment", async (req, res) => {
     const db = admin.firestore();
 
     // 6. Find Firebase user by email
-    const usersSnapshot = await db
-      .collection("users")
-      .where("email", "==", email)
-      .limit(1)
-      .get();
+    
+    let firebaseUser;
 
-    if (usersSnapshot.empty) {
-      return res.status(404).json({
-        success: false,
-        message: "No Firebase user found for this email",
-      });
-    }
+try {
+  firebaseUser = await admin.auth().getUserByEmail(email);
+} catch (error) {
+  if (error.code === "auth/user-not-found") {
+    return res.status(404).json({
+      success: false,
+      message: "No Firebase Authentication user found for this email",
+    });
+  }
 
-    const userDoc = usersSnapshot.docs[0];
-    const uid = userDoc.id;
+  throw error;
+}
+
+const uid = firebaseUser.uid;
+
+
 
     console.log("RECOVERY FIREBASE USER:", {
       uid,
