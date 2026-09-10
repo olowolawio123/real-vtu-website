@@ -7,8 +7,10 @@ import { useNavigate } from "react-router-dom";
 
 const Dashboard = () => {
   const navigate = useNavigate();
+
   const [wallet, setWallet] = useState(0);
   const [user, setUser] = useState(null);
+  const [userName, setUserName] = useState("");
 
   useEffect(() => {
     let unsubscribeWallet;
@@ -18,6 +20,7 @@ const Dashboard = () => {
 
       if (!authUser) {
         setWallet(0);
+        setUserName("");
         return;
       }
 
@@ -27,12 +30,37 @@ const Dashboard = () => {
         walletRef,
         (snapshot) => {
           if (snapshot.exists()) {
-            setWallet(Number(snapshot.data().wallet || 0));
+            const data = snapshot.data();
+
+            setWallet(Number(data.wallet || 0));
+
+            setUserName(
+              authUser.displayName ||
+                data.name ||
+                authUser.email?.split("@")[0] ||
+                "there"
+            );
           } else {
             setWallet(0);
+
+            setUserName(
+              authUser.displayName ||
+                authUser.email?.split("@")[0] ||
+                "there"
+            );
           }
         },
-        () => toast.error("Error watching wallet balance")
+        (error) => {
+          console.error("Wallet listener error:", error);
+
+          toast.error("Error watching wallet balance");
+
+          setUserName(
+            authUser.displayName ||
+              authUser.email?.split("@")[0] ||
+              "there"
+          );
+        }
       );
     });
 
@@ -48,9 +76,13 @@ const Dashboard = () => {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+
       toast.success("Logged out successfully");
+
       navigate("/login");
     } catch (error) {
+      console.error("Logout error:", error);
+
       toast.error("Unable to log out");
     }
   };
@@ -123,7 +155,7 @@ const Dashboard = () => {
               gap: "12px",
               cursor: "pointer",
             }}
-            onClick={() => navigate("/Dashboard")}
+            onClick={() => navigate("/dashboard")}
           >
             <div
               style={{
@@ -174,10 +206,10 @@ const Dashboard = () => {
             }}
           >
             <div
+              className="dashboard-user-email"
               style={{
                 display: "none",
               }}
-              className="dashboard-user-email"
             >
               {user?.email || ""}
             </div>
@@ -221,7 +253,8 @@ const Dashboard = () => {
             marginBottom: "25px",
             position: "relative",
             overflow: "hidden",
-            boxShadow: "0 15px 35px rgba(10, 108, 255, 0.2)",
+            boxShadow:
+              "0 15px 35px rgba(10, 108, 255, 0.2)",
           }}
         >
           <div
@@ -249,7 +282,7 @@ const Dashboard = () => {
                 letterSpacing: "-0.6px",
               }}
             >
-              {user?.displayName || "Welcome to INSTANT LOAD"}
+              {userName || "Welcome to INSTANT LOAD"}
             </h1>
 
             <p
@@ -287,12 +320,14 @@ const Dashboard = () => {
             marginBottom: "30px",
           }}
         >
+          {/* Wallet Balance */}
           <div
             style={{
               background: "#ffffff",
               borderRadius: "20px",
               padding: "25px",
-              boxShadow: "0 8px 25px rgba(20, 50, 90, 0.07)",
+              boxShadow:
+                "0 8px 25px rgba(20, 50, 90, 0.07)",
               border: "1px solid #E7EDF5",
             }}
           >
@@ -362,6 +397,7 @@ const Dashboard = () => {
             </div>
           </div>
 
+          {/* Fund Wallet */}
           <button
             onClick={() => navigate("/fund-wallet")}
             style={{
@@ -373,7 +409,8 @@ const Dashboard = () => {
               color: "#ffffff",
               cursor: "pointer",
               minWidth: "190px",
-              boxShadow: "0 10px 25px rgba(7, 26, 61, 0.15)",
+              boxShadow:
+                "0 10px 25px rgba(7, 26, 61, 0.15)",
             }}
           >
             <i
@@ -465,12 +502,14 @@ const Dashboard = () => {
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform =
                       "translateY(-4px)";
+
                     e.currentTarget.style.boxShadow =
                       "0 14px 30px rgba(20, 50, 90, 0.10)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform =
                       "translateY(0)";
+
                     e.currentTarget.style.boxShadow =
                       "0 7px 20px rgba(20, 50, 90, 0.05)";
                   }}
@@ -489,7 +528,9 @@ const Dashboard = () => {
                       marginBottom: "16px",
                     }}
                   >
-                    <i className={`bi ${action.icon}`}></i>
+                    <i
+                      className={`bi ${action.icon}`}
+                    ></i>
                   </div>
 
                   <h3
@@ -537,7 +578,8 @@ const Dashboard = () => {
             borderRadius: "20px",
             padding: "25px",
             border: "1px solid #E7EDF5",
-            boxShadow: "0 7px 20px rgba(20, 50, 90, 0.05)",
+            boxShadow:
+              "0 7px 20px rgba(20, 50, 90, 0.05)",
           }}
         >
           <div className="row g-4 align-items-center">
@@ -588,6 +630,7 @@ const Dashboard = () => {
                       color: "#0A6CFF",
                     }}
                   ></i>
+
                   <div
                     style={{
                       fontSize: "11px",
@@ -607,6 +650,7 @@ const Dashboard = () => {
                       color: "#0A6CFF",
                     }}
                   ></i>
+
                   <div
                     style={{
                       fontSize: "11px",
@@ -626,6 +670,7 @@ const Dashboard = () => {
                       color: "#0A6CFF",
                     }}
                   ></i>
+
                   <div
                     style={{
                       fontSize: "11px",
@@ -649,19 +694,116 @@ const Dashboard = () => {
             .dashboard-user-email {
               display: none !important;
             }
-          }
 
-          @media (max-width: 700px) {
+            nav {
+              padding: 12px 16px !important;
+            }
+
+            nav > div {
+              gap: 10px !important;
+            }
+
+            nav > div > div:first-child {
+              gap: 8px !important;
+            }
+
+            nav > div > div:first-child > div:first-child {
+              width: 38px !important;
+              height: 38px !important;
+              border-radius: 10px !important;
+              font-size: 15px !important;
+            }
+
+            nav > div > div:first-child > div:last-child > div:first-child {
+              font-size: 14px !important;
+            }
+
+            nav > div > div:first-child > div:last-child > div:last-child {
+              font-size: 8px !important;
+            }
+
+            nav button {
+              padding: 8px 10px !important;
+              font-size: 12px !important;
+            }
+
             main {
-              padding-left: 16px !important;
-              padding-right: 16px !important;
+              padding: 20px 16px 35px !important;
+            }
+
+            main > div:first-child {
+              padding: 24px 20px !important;
+              border-radius: 20px !important;
+            }
+
+            main > div:first-child h1 {
+              font-size: 25px !important;
+              line-height: 1.2 !important;
+            }
+
+            main > div:first-child p {
+              font-size: 12px !important;
+            }
+
+            main > div:first-child i {
+              right: 10px !important;
+              top: 15px !important;
+              font-size: 80px !important;
+            }
+
+            main > div:nth-child(2) {
+              grid-template-columns: 1fr !important;
+            }
+
+            main > div:nth-child(2) > button {
+              min-width: 0 !important;
+              width: 100% !important;
+              padding: 18px !important;
+            }
+
+            main > div:nth-child(2) > div {
+              padding: 20px !important;
+            }
+
+            main > div:nth-child(2) > div div {
+              font-size: 12px;
+            }
+
+            main > div:nth-child(2) > div div div:last-child {
+              font-size: 25px !important;
+            }
+
+            main h2 {
+              font-size: 19px !important;
+            }
+
+            main h3 {
+              font-size: 15px !important;
+            }
+
+            main > div:nth-child(3) .row {
+              margin-left: 0 !important;
+              margin-right: 0 !important;
+            }
+
+            main > div:nth-child(3) .col-12 {
+              padding-left: 0 !important;
+              padding-right: 0 !important;
+            }
+
+            main > div:nth-child(4) {
+              padding: 20px !important;
+            }
+
+            main > div:nth-child(4) h3 {
+              font-size: 18px !important;
             }
           }
 
-          @media (max-width: 600px) {
-            nav > div {
-              padding-left: 0 !important;
-              padding-right: 0 !important;
+          @media (min-width: 577px) and (max-width: 900px) {
+            main {
+              padding-left: 20px !important;
+              padding-right: 20px !important;
             }
           }
         `}

@@ -1150,19 +1150,21 @@ router.get("/", requireAuth, async (req, res) => {
 
       data: transactions,
     });
-  } catch (error) {
-    console.error(
-      "Transaction history error:",
-      error.message
-    );
+  }  catch (error) {
+  console.error("====================================");
+  console.error("TRANSACTION HISTORY ERROR");
+  console.error("Message:", error.message);
+  console.error("Code:", error.code);
+  console.error("Stack:", error.stack);
+  console.error("====================================");
 
-    return res.status(500).json({
-      success: false,
-
-      message:
-        "Unable to load transaction history",
-    });
-  }
+  return res.status(500).json({
+    success: false,
+    message: "Unable to load transaction history",
+    error: error.message,
+    code: error.code || null,
+  });
+}
 });
 
 module.exports = router;

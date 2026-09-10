@@ -4,6 +4,7 @@ import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
   signInWithPopup,
+  updateProfile,
 } from "firebase/auth";
 import {
   doc,
@@ -17,13 +18,13 @@ const Signup = () => {
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
+    name: "",
     email: "",
     password: "",
   });
 
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] =
-    useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     setForm((prev) => ({
@@ -37,30 +38,57 @@ const Signup = () => {
 
     if (loading) return;
 
+    const name = form.name.trim();
+    const email = form.email.trim();
+
+    if (!name) {
+      toast.error("Please enter your full name.");
+      return;
+    }
+
+    if (!email) {
+      toast.error("Please enter your email address.");
+      return;
+    }
+
+    if (form.password.length < 6) {
+      toast.error(
+        "Password should contain at least 6 characters."
+      );
+      return;
+    }
+
     try {
       setLoading(true);
 
+      // Create Firebase account
       const userCred =
         await createUserWithEmailAndPassword(
           auth,
-          form.email.trim(),
+          email,
           form.password
         );
 
+      // Save user's name to Firebase Authentication
+      await updateProfile(userCred.user, {
+        displayName: name,
+      });
+
+      // Create / update user's Firestore wallet profile
       await setDoc(
         doc(db, "users", userCred.user.uid),
         {
           uid: userCred.user.uid,
-          email: userCred.user.email || "",
+          name: name,
+          email: userCred.user.email || email,
           wallet: 0,
           createdAt: serverTimestamp(),
         },
         { merge: true }
       );
 
-      await sendEmailVerification(
-        userCred.user
-      );
+      // Send verification email
+      await sendEmailVerification(userCred.user);
 
       toast.success(
         "Account created successfully. Please check your email to verify your account."
@@ -82,7 +110,8 @@ const Signup = () => {
       }
 
       if (
-        err.code === "auth/weak-password"
+        err.code ===
+        "auth/weak-password"
       ) {
         message =
           "Password should contain at least 6 characters.";
@@ -94,6 +123,14 @@ const Signup = () => {
       ) {
         message =
           "Please enter a valid email address.";
+      }
+
+      if (
+        err.code ===
+        "auth/operation-not-allowed"
+      ) {
+        message =
+          "Email signup is currently disabled.";
       }
 
       toast.error(message);
@@ -113,11 +150,14 @@ const Signup = () => {
         googleProvider
       );
 
+      const googleUser = result.user;
+
       await setDoc(
-        doc(db, "users", result.user.uid),
+        doc(db, "users", googleUser.uid),
         {
-          uid: result.user.uid,
-          email: result.user.email || "",
+          uid: googleUser.uid,
+          name: googleUser.displayName || "",
+          email: googleUser.email || "",
           wallet: 0,
           createdAt: serverTimestamp(),
         },
@@ -128,17 +168,33 @@ const Signup = () => {
         "Signup successful with Google!"
       );
 
-      navigate("/Dashboard");
+      navigate("/dashboard");
     } catch (err) {
       console.error(
         "Google signup error:",
         err
       );
 
-      toast.error(
-        err.message ||
-          "Google signup failed."
-      );
+      let message =
+        "Google signup failed. Please try again.";
+
+      if (
+        err.code ===
+        "auth/popup-closed-by-user"
+      ) {
+        message =
+          "Google signup was cancelled.";
+      }
+
+      if (
+        err.code ===
+        "auth/account-exists-with-different-credential"
+      ) {
+        message =
+          "An account already exists with this email. Please login instead.";
+      }
+
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -166,9 +222,7 @@ const Signup = () => {
               <div>
                 <div className="signup-logo-title">
                   INSTANT{" "}
-                  <span>
-                    LOAD
-                  </span>
+                  <span>LOAD</span>
                 </div>
 
                 <div className="signup-logo-subtitle">
@@ -180,9 +234,7 @@ const Signup = () => {
             {/* HERO */}
             <h1 className="signup-hero-title">
               Join{" "}
-              <span>
-                INSTANT LOAD
-              </span>
+              <span>INSTANT LOAD</span>
             </h1>
 
             <p className="signup-hero-text">
@@ -308,6 +360,29 @@ const Signup = () => {
             className="signup-form"
           >
 
+            {/* NAME */}
+            <div className="signup-field">
+              <label>
+                Full Name
+              </label>
+
+              <div className="signup-input-wrapper">
+                <span className="signup-input-icon">
+                  👤
+                </span>
+
+                <input
+                  type="text"
+                  name="name"
+                  value={form.name}
+                  onChange={handleChange}
+                  placeholder="Enter your full name"
+                  required
+                  autoComplete="name"
+                />
+              </div>
+            </div>
+
             {/* EMAIL */}
             <div className="signup-field">
               <label>
@@ -364,6 +439,11 @@ const Signup = () => {
                     setShowPassword(
                       (prev) => !prev
                     )
+                  }
+                  aria-label={
+                    showPassword
+                      ? "Hide password"
+                      : "Show password"
                   }
                 >
                   {showPassword
@@ -697,6 +777,7 @@ const Signup = () => {
               translateY(-50%);
             font-size: 18px;
             z-index: 1;
+            pointer-events: none;
           }
 
           .signup-input-wrapper input {
