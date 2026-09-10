@@ -1,7 +1,11 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
-require("dotenv").config();
+const {
+  startPendingOrderChecker,
+} = require("./services/pendingOrderService"); 
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -91,4 +95,6 @@ app.listen(port, () => {
   console.log(
     `Server running on port ${port}`
   );
+
+  startPendingOrderChecker();
 });

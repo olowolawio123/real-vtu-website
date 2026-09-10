@@ -13,7 +13,9 @@ const VTU_API_KEY =
 
 function getVtuHeaders() {
   if (!VTU_API_KEY) {
-    throw new Error("VTU API key is missing");
+    throw new Error(
+      "VTU API key is missing"
+    );
   }
 
   return {
@@ -24,7 +26,9 @@ function getVtuHeaders() {
 
 async function getElectricityPlans() {
   if (!VTU_BASE_URL) {
-    throw new Error("VTU base URL is missing");
+    throw new Error(
+      "VTU base URL is missing"
+    );
   }
 
   const response = await axios.post(
@@ -44,14 +48,19 @@ async function verifyElectricityMeter({
   meterNumber,
 }) {
   if (!VTU_BASE_URL) {
-    throw new Error("VTU base URL is missing");
+    throw new Error(
+      "VTU base URL is missing"
+    );
   }
 
   const response = await axios.post(
     `${VTU_BASE_URL}/api/billpayment/verify/`,
     {
-      disco_name: String(discoName),
-      meter_number: String(meterNumber),
+      disco_name:
+        String(discoName),
+
+      meter_number:
+        String(meterNumber),
     },
     {
       headers: getVtuHeaders(),
@@ -69,19 +78,82 @@ async function purchaseElectricity({
   amount,
 }) {
   if (!VTU_BASE_URL) {
-    throw new Error("VTU base URL is missing");
+    throw new Error(
+      "VTU base URL is missing"
+    );
   }
 
-  const response = await axios.post(
-    `${VTU_BASE_URL}/api/billpayment/`,
+  try {
+    const response = await axios.post(
+      `${VTU_BASE_URL}/api/billpayment/`,
+      {
+        disco_name:
+          String(discoName),
+
+        meter_number:
+          String(meterNumber),
+
+        MeterType:
+          meterType || "prepaid",
+
+        amount:
+          String(amount),
+      },
+      {
+        headers: getVtuHeaders(),
+        timeout: 30000,
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    /*
+     * IMPORTANT:
+     *
+     * VTU Naija can return a useful transaction
+     * response together with an HTTP error status.
+     *
+     * Do NOT throw away that response.
+     */
+
+    if (error.response?.data) {
+      console.error(
+        "Electricity provider HTTP response:",
+        error.response.data
+      );
+
+      return error.response.data;
+    }
+
+    throw error;
+  }
+}
+
+async function queryElectricityTransaction({
+  transactionId,
+}) {
+  if (!VTU_BASE_URL) {
+    throw new Error(
+      "VTU base URL is missing"
+    );
+  }
+
+  if (!transactionId) {
+    throw new Error(
+      "VTU transaction ID is required"
+    );
+  }
+
+  const response = await axios.get(
+    `${VTU_BASE_URL}/api/queryTransaction/index.php`,
     {
-      disco_name: String(discoName),
-      meter_number: String(meterNumber),
-      MeterType: meterType || "prepaid",
-      amount: String(amount),
-    },
-    {
+      params: {
+        transaction_id:
+          String(transactionId),
+      },
+
       headers: getVtuHeaders(),
+
       timeout: 30000,
     }
   );
@@ -93,4 +165,5 @@ module.exports = {
   getElectricityPlans,
   verifyElectricityMeter,
   purchaseElectricity,
+  queryElectricityTransaction,
 };

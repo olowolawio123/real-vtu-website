@@ -43,39 +43,69 @@ const CableTvPurchase = () => {
   // =====================================================
 
   useEffect(() => {
-    const loadPlans = async () => {
+    let unsubscribeAuth;
+
+    const loadPlans = async (user) => {
       try {
         setLoadingPlans(true);
 
+        if (!user) {
+          setPlans([]);
+          setSelectedProvider("");
+          return;
+        }
+
+        const idToken =
+          await user.getIdToken();
+
         const response = await axios.get(
-          `${API_URL}/api/vtu/cable-tv-plans`
+          `${API_URL}/api/vtu/cable-tv-plans`,
+          {
+            headers: {
+              Authorization:
+                `Bearer ${idToken}`,
+            },
+          }
         );
 
         const cablePlans =
-          response.data?.data?.dataplans || [];
+          response.data?.data?.dataplans ||
+          response.data?.dataplans ||
+          [];
 
         setPlans(cablePlans);
 
         if (cablePlans.length > 0) {
           setSelectedProvider(
-            cablePlans[0].the_cabletv_name
+            cablePlans[0].the_cabletv_name || ""
           );
         }
       } catch (error) {
         console.error(
           "Cable TV plans error:",
-          error.response?.data || error.message
+          error.response?.data ||
+            error.message
         );
 
         toast.error(
-          "Unable to load Cable TV plans"
+          error.response?.data?.message ||
+            "Unable to load Cable TV plans"
         );
       } finally {
         setLoadingPlans(false);
       }
     };
 
-    loadPlans();
+    unsubscribeAuth =
+      auth.onAuthStateChanged((user) => {
+        loadPlans(user);
+      });
+
+    return () => {
+      if (unsubscribeAuth) {
+        unsubscribeAuth();
+      }
+    };
   }, []);
 
   // =====================================================
@@ -219,6 +249,13 @@ const CableTvPurchase = () => {
       return;
     }
 
+    if (!selectedProvider) {
+      toast.error(
+        "Select a Cable TV provider"
+      );
+      return;
+    }
+
     try {
       setVerifying(true);
       setCustomer(null);
@@ -226,18 +263,19 @@ const CableTvPurchase = () => {
       const idToken =
         await user.getIdToken();
 
+      const cableName =
+        selectedProvider === "GOTV"
+          ? "1"
+          : selectedProvider === "DSTV"
+          ? "2"
+          : selectedProvider === "STARTIMES"
+          ? "3"
+          : "4";
+
       const response = await axios.post(
         `${API_URL}/api/vtu/verify-cable-customer`,
         {
-          cableName:
-            selectedProvider === "GOTV"
-              ? "1"
-              : selectedProvider === "DSTV"
-              ? "2"
-              : selectedProvider ===
-                "STARTIMES"
-              ? "3"
-              : "4",
+          cableName,
           smartCardNumber:
             cleanSmartCard,
         },
@@ -347,7 +385,10 @@ const CableTvPurchase = () => {
       selectedPlan.price_for_basicuser
     );
 
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0
+    ) {
       toast.error(
         "Invalid Cable TV plan price"
       );
@@ -372,8 +413,7 @@ const CableTvPurchase = () => {
           ? "1"
           : selectedProvider === "DSTV"
           ? "2"
-          : selectedProvider ===
-            "STARTIMES"
+          : selectedProvider === "STARTIMES"
           ? "3"
           : "4";
 
@@ -641,8 +681,7 @@ const CableTvPurchase = () => {
             </div>
 
             <p style={styles.hint}>
-              Sandbox test number:
-              {" "}
+              Sandbox test number:{" "}
               <strong>
                 1212121212
               </strong>

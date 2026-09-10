@@ -10,25 +10,35 @@ import { auth } from "../../firebase";
 
 import { toast } from "react-toastify";
 
+const DATA_MARKUP = 50;
+
 const DataPurchase = () => {
-  const [network, setNetwork] =
-    useState("MTN");
+  const [network, setNetwork] = useState("MTN");
 
-  const [plans, setPlans] =
-    useState([]);
+  const [plans, setPlans] = useState([]);
 
-  const [phone, setPhone] =
-    useState("");
+  const [phone, setPhone] = useState("");
 
-  const [selectedPlan, setSelectedPlan] =
-    useState("");
+  const [selectedPlan, setSelectedPlan] = useState("");
 
-  const [loading, setLoading] =
-    useState(false);
+  const [loading, setLoading] = useState(false);
 
   const apiUrl =
     process.env.REACT_APP_API_URL ||
     "http://localhost:5000";
+
+  /*
+  |--------------------------------------------------------------------------
+  | Calculate customer selling price
+  |--------------------------------------------------------------------------
+  */
+
+  const getSellingPrice = (plan) => {
+    const providerPrice =
+      Number(plan.price_for_basicuser);
+
+    return providerPrice + DATA_MARKUP;
+  };
 
   /*
   |--------------------------------------------------------------------------
@@ -40,28 +50,126 @@ const DataPurchase = () => {
     try {
       setLoading(true);
 
+      const currentUser = auth.currentUser;
+
+      if (!currentUser) {
+        toast.error("Please log in first.");
+
+        setPlans([]);
+
+        return;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Get Firebase ID token
+      |--------------------------------------------------------------------------
+      */
+
+      const idToken =
+        await currentUser.getIdToken();
+
+      /*
+      |--------------------------------------------------------------------------
+      | Load plans from backend
+      |--------------------------------------------------------------------------
+      */
+
       const response = await axios.get(
-        `${apiUrl}/api/vtu/data-plans`
+        `${apiUrl}/api/vtu/data-plans`,
+        {
+          headers: {
+            Authorization:
+              `Bearer ${idToken}`,
+          },
+        }
       );
 
-      if (response.data.success) {
-        const providerPlans =
-          response.data.data?.dataplans || [];
+      console.log(
+        "FULL DATA PLANS RESPONSE:",
+        response.data
+      );
 
-        const activePlans =
-          providerPlans.filter(
-            (plan) =>
-              String(plan.status).toLowerCase() ===
-              "on"
-          );
+      /*
+      |--------------------------------------------------------------------------
+      | Accept provider success response
+      |--------------------------------------------------------------------------
+      */
 
-        setPlans(activePlans);
-      } else {
+      const payload = response.data;
+
+      const requestSuccessful =
+        payload?.success === true ||
+        payload?.status === "success" ||
+        payload?.Status === "successful";
+
+      if (!requestSuccessful) {
         toast.error(
-          "Unable to load data plans."
+          payload?.message ||
+            "Unable to load data plans."
         );
 
         setPlans([]);
+
+        return;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Get plans from actual provider response
+      |--------------------------------------------------------------------------
+      */
+
+      const providerPlans =
+        payload?.dataplans ||
+        payload?.data?.dataplans ||
+        [];
+
+      console.log(
+        "RAW DATA PLAN LIST:",
+        providerPlans
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Keep active plans
+      |--------------------------------------------------------------------------
+      */
+
+      const activePlans =
+        providerPlans.filter(
+          (plan) => {
+            const status =
+              String(
+                plan.status || ""
+              ).toLowerCase();
+
+            return (
+              status === "on" ||
+              status === "active" ||
+              status === "enabled" ||
+              status === ""
+            );
+          }
+        );
+
+      console.log(
+        "ACTIVE DATA PLANS:",
+        activePlans
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Save plans
+      |--------------------------------------------------------------------------
+      */
+
+      setPlans(activePlans);
+
+      if (activePlans.length === 0) {
+        toast.warning(
+          "No active data plans are available."
+        );
       }
     } catch (error) {
       console.error(
@@ -71,7 +179,8 @@ const DataPurchase = () => {
       );
 
       toast.error(
-        "Unable to load data plans."
+        error.response?.data?.message ||
+          "Unable to load data plans."
       );
 
       setPlans([]);
@@ -92,7 +201,7 @@ const DataPurchase = () => {
 
   /*
   |--------------------------------------------------------------------------
-  | Filter plans
+  | Filter plans by network
   |--------------------------------------------------------------------------
   */
 
@@ -100,7 +209,7 @@ const DataPurchase = () => {
     plans.filter(
       (plan) =>
         String(
-          plan.the_network_name
+          plan.the_network_name || ""
         ).toUpperCase() === network
     );
 
@@ -235,7 +344,7 @@ const DataPurchase = () => {
 
       /*
       |--------------------------------------------------------------------------
-      | Send authenticated purchase request
+      | Purchase data
       |--------------------------------------------------------------------------
       */
 
@@ -262,15 +371,19 @@ const DataPurchase = () => {
 
       /*
       |--------------------------------------------------------------------------
-      | Success
+      | Purchase success
       |--------------------------------------------------------------------------
       */
 
       if (
-        response.data.success
+        response.data.success ||
+        response.data.status ===
+          "success" ||
+        response.data.Status ===
+          "successful"
       ) {
         toast.success(
-          `Sandbox request sent: ${plan.size} to ${phone}`
+          `Data purchase successful: ${plan.size} to ${phone}`
         );
 
         console.log(
@@ -282,6 +395,10 @@ const DataPurchase = () => {
           "Provider response:",
           response.data.providerResponse
         );
+
+        setSelectedPlan("");
+
+        setPhone("");
       } else {
         toast.error(
           response.data.message ||
@@ -416,30 +533,35 @@ const DataPurchase = () => {
               </option>
 
               {filteredPlans.map(
-                (plan) => (
-                  <option
-                    key={
-                      plan.data_plan_id
-                    }
-                    value={
-                      plan.data_plan_id
-                    }
-                  >
-                    {plan.size} — ₦
-                    {Number(
-                      plan.price_for_basicuser
-                    ).toLocaleString()}{" "}
-                    (
-                    {plan.duration}{" "}
-                    day
-                    {String(
-                      plan.duration
-                    ) === "1"
-                      ? ""
-                      : "s"}
-                    )
-                  </option>
-                )
+                (plan) => {
+                  const sellingPrice =
+                    getSellingPrice(
+                      plan
+                    );
+
+                  return (
+                    <option
+                      key={
+                        plan.data_plan_id
+                      }
+                      value={
+                        plan.data_plan_id
+                      }
+                    >
+                      {plan.size} — ₦
+                      {sellingPrice.toLocaleString()}{" "}
+                      (
+                      {plan.duration}{" "}
+                      day
+                      {String(
+                        plan.duration
+                      ) === "1"
+                        ? ""
+                        : "s"}
+                      )
+                    </option>
+                  );
+                }
               )}
             </select>
           )}
@@ -464,6 +586,11 @@ const DataPurchase = () => {
               if (!plan) {
                 return null;
               }
+
+              const sellingPrice =
+                getSellingPrice(
+                  plan
+                );
 
               return (
                 <>
@@ -498,10 +625,10 @@ const DataPurchase = () => {
 
                   <br />
 
-                  Provider price: ₦
-                  {Number(
-                    plan.price_for_basicuser
-                  ).toLocaleString()}
+                  <strong>
+                    Price: ₦
+                    {sellingPrice.toLocaleString()}
+                  </strong>
                 </>
               );
             })()}
@@ -516,18 +643,36 @@ const DataPurchase = () => {
           onClick={
             handlePurchase
           }
-          disabled={loading}
+          disabled={
+            loading ||
+            !selectedPlan ||
+            !phone
+          }
         >
           {loading
             ? "Processing..."
+            : selectedPlan
+            ? `Buy Data for ₦${getSellingPrice(
+                plans.find(
+                  (item) =>
+                    String(
+                      item.data_plan_id
+                    ) ===
+                    String(
+                      selectedPlan
+                    )
+                ) || {
+                  price_for_basicuser: 0,
+                }
+              ).toLocaleString()}`
             : "Buy Data"}
         </button>
 
         {/* SANDBOX NOTICE */}
 
         <small className="text-muted d-block mt-3 text-center">
-          Sandbox mode — wallet
-          deduction is not enabled yet.
+          Sandbox mode — testing
+          environment.
         </small>
 
       </div>
