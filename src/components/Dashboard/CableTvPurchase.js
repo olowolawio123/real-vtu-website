@@ -1,4 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import axios from "axios";
 import {
   doc,
@@ -13,7 +17,8 @@ const API_URL =
 
 const CableTvPurchase = () => {
   const [plans, setPlans] = useState([]);
-  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletBalance, setWalletBalance] =
+    useState(0);
 
   const [selectedProvider, setSelectedProvider] =
     useState("");
@@ -24,7 +29,8 @@ const CableTvPurchase = () => {
   const [smartCardNumber, setSmartCardNumber] =
     useState("");
 
-  const [customer, setCustomer] = useState(null);
+  const [customer, setCustomer] =
+    useState(null);
 
   const [loadingPlans, setLoadingPlans] =
     useState(true);
@@ -77,7 +83,8 @@ const CableTvPurchase = () => {
 
         if (cablePlans.length > 0) {
           setSelectedProvider(
-            cablePlans[0].the_cabletv_name || ""
+            cablePlans[0].the_cabletv_name ||
+              ""
           );
         }
       } catch (error) {
@@ -147,7 +154,8 @@ const CableTvPurchase = () => {
             }
           );
 
-        return () => unsubscribeWallet();
+        return () =>
+          unsubscribeWallet();
       });
 
     return () => unsubscribeAuth();
@@ -185,14 +193,20 @@ const CableTvPurchase = () => {
         plan.the_cabletv_name ===
         selectedProvider
     );
-  }, [plans, selectedProvider]);
+  }, [
+    plans,
+    selectedProvider,
+  ]);
 
   // =====================================================
   // SELECT PROVIDER
   // =====================================================
 
-  const handleProviderChange = (event) => {
-    const provider = event.target.value;
+  const handleProviderChange = (
+    event
+  ) => {
+    const provider =
+      event.target.value;
 
     setSelectedProvider(provider);
     setSelectedPlan(null);
@@ -204,16 +218,24 @@ const CableTvPurchase = () => {
   // SELECT PLAN
   // =====================================================
 
-  const handlePlanChange = (event) => {
-    const planId = event.target.value;
+  const handlePlanChange = (
+    event
+  ) => {
+    const planId =
+      event.target.value;
 
-    const plan = providerPlans.find(
-      (item) =>
-        String(item.cabletv_plan_id) ===
-        String(planId)
+    const plan =
+      providerPlans.find(
+        (item) =>
+          String(
+            item.cabletv_plan_id
+          ) === String(planId)
+      );
+
+    setSelectedPlan(
+      plan || null
     );
 
-    setSelectedPlan(plan || null);
     setCustomer(null);
     setReceipt(null);
   };
@@ -222,278 +244,301 @@ const CableTvPurchase = () => {
   // VERIFY CUSTOMER
   // =====================================================
 
-  const handleVerifyCustomer = async () => {
-    const user = auth.currentUser;
+  const handleVerifyCustomer =
+    async () => {
+      const user =
+        auth.currentUser;
 
-    if (!user) {
-      toast.error(
-        "Please login before continuing"
-      );
-      return;
-    }
-
-    const cleanSmartCard =
-      smartCardNumber.trim();
-
-    if (!cleanSmartCard) {
-      toast.error(
-        "Enter your Smart Card / IUC number"
-      );
-      return;
-    }
-
-    if (!/^\d+$/.test(cleanSmartCard)) {
-      toast.error(
-        "Smart Card / IUC number must contain only numbers"
-      );
-      return;
-    }
-
-    if (!selectedProvider) {
-      toast.error(
-        "Select a Cable TV provider"
-      );
-      return;
-    }
-
-    try {
-      setVerifying(true);
-      setCustomer(null);
-
-      const idToken =
-        await user.getIdToken();
-
-      const cableName =
-        selectedProvider === "GOTV"
-          ? "1"
-          : selectedProvider === "DSTV"
-          ? "2"
-          : selectedProvider === "STARTIMES"
-          ? "3"
-          : "4";
-
-      const response = await axios.post(
-        `${API_URL}/api/vtu/verify-cable-customer`,
-        {
-          cableName,
-          smartCardNumber:
-            cleanSmartCard,
-        },
-        {
-          headers: {
-            Authorization:
-              `Bearer ${idToken}`,
-          },
-        }
-      );
-
-      const providerData =
-        response.data?.data;
-
-      if (!providerData) {
+      if (!user) {
         toast.error(
-          "Customer verification failed"
+          "Please login before continuing"
         );
         return;
       }
 
-      const status = String(
-        providerData?.Status ||
-          providerData?.status ||
-          ""
-      ).toLowerCase();
+      const cleanSmartCard =
+        smartCardNumber.trim();
 
-      if (
-        status === "failed" ||
-        status === "fail" ||
-        status === "error"
-      ) {
+      if (!cleanSmartCard) {
         toast.error(
-          providerData?.api_response ||
+          "Enter your Smart Card / IUC number"
+        );
+        return;
+      }
+
+      if (!/^\d+$/.test(cleanSmartCard)) {
+        toast.error(
+          "Smart Card / IUC number must contain only numbers"
+        );
+        return;
+      }
+
+      if (!selectedProvider) {
+        toast.error(
+          "Select a Cable TV provider"
+        );
+        return;
+      }
+
+      try {
+        setVerifying(true);
+        setCustomer(null);
+
+        const idToken =
+          await user.getIdToken();
+
+        const cableName =
+          selectedProvider === "GOTV"
+            ? "1"
+            : selectedProvider === "DSTV"
+            ? "2"
+            : selectedProvider ===
+              "STARTIMES"
+            ? "3"
+            : "4";
+
+        const response =
+          await axios.post(
+            `${API_URL}/api/vtu/verify-cable-customer`,
+            {
+              cableName,
+              smartCardNumber:
+                cleanSmartCard,
+            },
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${idToken}`,
+              },
+            }
+          );
+
+        const providerData =
+          response.data?.data;
+
+        if (!providerData) {
+          toast.error(
             "Customer verification failed"
+          );
+          return;
+        }
+
+        const status =
+          String(
+            providerData?.Status ||
+              providerData?.status ||
+              ""
+          ).toLowerCase();
+
+        if (
+          status === "failed" ||
+          status === "fail" ||
+          status === "error"
+        ) {
+          toast.error(
+            providerData?.api_response ||
+              "Customer verification failed"
+          );
+          return;
+        }
+
+        setCustomer(providerData);
+
+        toast.success(
+          "Customer verified successfully"
         );
-        return;
+      } catch (error) {
+        console.error(
+          "Cable TV verification error:",
+          error.response?.data ||
+            error.message
+        );
+
+        toast.error(
+          error.response?.data?.message ||
+            "Unable to verify customer"
+        );
+      } finally {
+        setVerifying(false);
       }
-
-      setCustomer(providerData);
-
-      toast.success(
-        "Customer verified successfully"
-      );
-    } catch (error) {
-      console.error(
-        "Cable TV verification error:",
-        error.response?.data ||
-          error.message
-      );
-
-      toast.error(
-        error.response?.data?.message ||
-          "Unable to verify customer"
-      );
-    } finally {
-      setVerifying(false);
-    }
-  };
+    };
 
   // =====================================================
   // PURCHASE
   // =====================================================
 
-  const handlePurchase = async () => {
-    const user = auth.currentUser;
+  const handlePurchase =
+    async () => {
+      const user =
+        auth.currentUser;
 
-    if (!user) {
-      toast.error(
-        "Please login before continuing"
-      );
-      return;
-    }
-
-    if (!selectedProvider) {
-      toast.error(
-        "Select a Cable TV provider"
-      );
-      return;
-    }
-
-    if (!selectedPlan) {
-      toast.error(
-        "Select a Cable TV plan"
-      );
-      return;
-    }
-
-    const cleanSmartCard =
-      smartCardNumber.trim();
-
-    if (!cleanSmartCard) {
-      toast.error(
-        "Enter your Smart Card / IUC number"
-      );
-      return;
-    }
-
-    if (!customer) {
-      toast.error(
-        "Verify the customer before subscribing"
-      );
-      return;
-    }
-
-    const amount = Number(
-      selectedPlan.price_for_basicuser
-    );
-
-    if (
-      !Number.isFinite(amount) ||
-      amount <= 0
-    ) {
-      toast.error(
-        "Invalid Cable TV plan price"
-      );
-      return;
-    }
-
-    if (amount > walletBalance) {
-      toast.error(
-        "Insufficient wallet balance"
-      );
-      return;
-    }
-
-    try {
-      setPurchasing(true);
-
-      const idToken =
-        await user.getIdToken();
-
-      const cableName =
-        selectedProvider === "GOTV"
-          ? "1"
-          : selectedProvider === "DSTV"
-          ? "2"
-          : selectedProvider === "STARTIMES"
-          ? "3"
-          : "4";
-
-      const response = await axios.post(
-        `${API_URL}/api/vtu/buy-cable-tv`,
-        {
-          cableName,
-          smartCardNumber:
-            cleanSmartCard,
-          cablePlan:
-            selectedPlan.cabletv_plan_id,
-          amount,
-        },
-        {
-          headers: {
-            Authorization:
-              `Bearer ${idToken}`,
-          },
-        }
-      );
-
-      const result = response.data;
-
-      if (!result?.success) {
+      if (!user) {
         toast.error(
-          result?.message ||
-            "Cable TV subscription failed"
+          "Please login before continuing"
         );
         return;
       }
 
-      const providerResponse =
-        result?.data || {};
+      if (!selectedProvider) {
+        toast.error(
+          "Select a Cable TV provider"
+        );
+        return;
+      }
 
-      const providerReference =
-        result?.providerReference ||
-        providerResponse?.ident ||
-        providerResponse?.id ||
-        providerResponse?.reference ||
-        null;
+      if (!selectedPlan) {
+        toast.error(
+          "Select a Cable TV plan"
+        );
+        return;
+      }
 
-      setReceipt({
-        provider: selectedProvider,
-        plan: selectedPlan.size,
-        smartCardNumber:
-          cleanSmartCard,
-        amount,
-        duration:
-          selectedPlan.duration,
-        providerReference,
-        providerResponse,
-      });
+      const cleanSmartCard =
+        smartCardNumber.trim();
 
-      toast.success(
-        "Cable TV subscription successful"
-      );
+      if (!cleanSmartCard) {
+        toast.error(
+          "Enter your Smart Card / IUC number"
+        );
+        return;
+      }
 
-      setCustomer(null);
-    } catch (error) {
-      console.error(
-        "Cable TV purchase error:",
-        error.response?.data ||
-          error.message
-      );
+      if (!customer) {
+        toast.error(
+          "Verify the customer before subscribing"
+        );
+        return;
+      }
 
-      toast.error(
-        error.response?.data?.message ||
-          "Cable TV subscription failed"
-      );
-    } finally {
-      setPurchasing(false);
-    }
-  };
+      const amount =
+        Number(
+          selectedPlan.price_for_basicuser
+        );
+
+      if (
+        !Number.isFinite(amount) ||
+        amount <= 0
+      ) {
+        toast.error(
+          "Invalid Cable TV plan price"
+        );
+        return;
+      }
+
+      if (amount > walletBalance) {
+        toast.error(
+          "Insufficient wallet balance"
+        );
+        return;
+      }
+
+      try {
+        setPurchasing(true);
+
+        const idToken =
+          await user.getIdToken();
+
+        const cableName =
+          selectedProvider === "GOTV"
+            ? "1"
+            : selectedProvider === "DSTV"
+            ? "2"
+            : selectedProvider ===
+              "STARTIMES"
+            ? "3"
+            : "4";
+
+        const response =
+          await axios.post(
+            `${API_URL}/api/vtu/buy-cable-tv`,
+            {
+              cableName,
+              smartCardNumber:
+                cleanSmartCard,
+              cablePlan:
+                selectedPlan.cabletv_plan_id,
+              amount,
+            },
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${idToken}`,
+              },
+            }
+          );
+
+        const result =
+          response.data;
+
+        if (!result?.success) {
+          toast.error(
+            result?.message ||
+              "Cable TV subscription failed"
+          );
+          return;
+        }
+
+        const providerResponse =
+          result?.data || {};
+
+        const providerReference =
+          result?.providerReference ||
+          providerResponse?.ident ||
+          providerResponse?.id ||
+          providerResponse?.reference ||
+          null;
+
+        setReceipt({
+          provider:
+            selectedProvider,
+
+          plan:
+            selectedPlan.size,
+
+          smartCardNumber:
+            cleanSmartCard,
+
+          amount,
+
+          duration:
+            selectedPlan.duration,
+
+          providerReference,
+
+          providerResponse,
+        });
+
+        toast.success(
+          "Cable TV subscription successful"
+        );
+
+        setCustomer(null);
+      } catch (error) {
+        console.error(
+          "Cable TV purchase error:",
+          error.response?.data ||
+            error.message
+        );
+
+        toast.error(
+          error.response?.data?.message ||
+            "Cable TV subscription failed"
+        );
+      } finally {
+        setPurchasing(false);
+      }
+    };
 
   // =====================================================
   // FORMAT MONEY
   // =====================================================
 
-  const formatMoney = (amount) => {
-    return Number(amount || 0).toLocaleString(
+  const formatMoney = (
+    amount
+  ) => {
+    return Number(
+      amount || 0
+    ).toLocaleString(
       "en-NG",
       {
         minimumFractionDigits: 2,
@@ -509,8 +554,21 @@ const CableTvPurchase = () => {
   if (loadingPlans) {
     return (
       <div style={styles.page}>
-        <div style={styles.loading}>
-          Loading Cable TV plans...
+        <div style={styles.loadingCard}>
+          <div style={styles.loadingIcon}>
+            📺
+          </div>
+
+          <h2 style={styles.loadingTitle}>
+            Loading Cable TV
+          </h2>
+
+          <p style={styles.loadingText}>
+            Getting the latest subscription
+            packages...
+          </p>
+
+          <div style={styles.spinner} />
         </div>
       </div>
     );
@@ -523,123 +581,273 @@ const CableTvPurchase = () => {
   return (
     <div style={styles.page}>
       <div style={styles.container}>
+
+        {/* HEADER */}
+
         <div style={styles.header}>
           <div>
+            <div style={styles.brandBadge}>
+              INSTANT LOAD
+            </div>
+
             <h1 style={styles.title}>
-              Cable TV Subscription
+              Cable TV
             </h1>
 
             <p style={styles.subtitle}>
-              Subscribe to your Cable TV package
-              using your wallet.
+              Subscribe to your favourite
+              Cable TV package instantly.
             </p>
           </div>
 
-          <div style={styles.wallet}>
-            <span style={styles.walletLabel}>
-              Wallet Balance
-            </span>
+          <div style={styles.walletCard}>
+            <div style={styles.walletTop}>
+              <span>
+                Wallet Balance
+              </span>
+
+              <span style={styles.walletIcon}>
+                ₦
+              </span>
+            </div>
 
             <strong style={styles.walletAmount}>
-              ₦{formatMoney(walletBalance)}
+              ₦{formatMoney(
+                walletBalance
+              )}
             </strong>
           </div>
         </div>
 
+        {/* MAIN CARD */}
+
         <div style={styles.card}>
+
+          {/* PROVIDER */}
+
           <div style={styles.section}>
             <label style={styles.label}>
               Cable TV Provider
             </label>
 
-            <select
-              value={selectedProvider}
-              onChange={handleProviderChange}
-              style={styles.input}
-            >
-              <option value="">
-                Select provider
-              </option>
+            <div style={styles.selectWrapper}>
+              <span style={styles.selectIcon}>
+                📺
+              </span>
 
-              {providers.map((provider) => (
-                <option
-                  key={provider}
-                  value={provider}
-                >
-                  {provider}
+              <select
+                value={
+                  selectedProvider
+                }
+                onChange={
+                  handleProviderChange
+                }
+                style={
+                  styles.select
+                }
+              >
+                <option value="">
+                  Select provider
                 </option>
-              ))}
-            </select>
+
+                {providers.map(
+                  (provider) => (
+                    <option
+                      key={provider}
+                      value={provider}
+                    >
+                      {provider}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
           </div>
+
+          {/* PROVIDER QUICK CHOICES */}
+
+          {providers.length > 0 && (
+            <div style={styles.providerTiles}>
+              {providers.map(
+                (provider) => {
+                  const active =
+                    selectedProvider ===
+                    provider;
+
+                  return (
+                    <button
+                      key={provider}
+                      type="button"
+                      onClick={() => {
+                        setSelectedProvider(
+                          provider
+                        );
+
+                        setSelectedPlan(
+                          null
+                        );
+
+                        setCustomer(
+                          null
+                        );
+
+                        setReceipt(
+                          null
+                        );
+                      }}
+                      style={{
+                        ...styles.providerTile,
+                        ...(active
+                          ? styles.providerTileActive
+                          : {}),
+                      }}
+                    >
+                      <span
+                        style={{
+                          ...styles.providerTileIcon,
+                          ...(active
+                            ? styles.providerTileIconActive
+                            : {}),
+                        }}
+                      >
+                        📺
+                      </span>
+
+                      <span>
+                        {provider}
+                      </span>
+                    </button>
+                  );
+                }
+              )}
+            </div>
+          )}
+
+          {/* PLAN */}
 
           <div style={styles.section}>
             <label style={styles.label}>
-              Package
+              Select Package
             </label>
 
-            <select
-              value={
-                selectedPlan?.cabletv_plan_id ||
-                ""
-              }
-              onChange={handlePlanChange}
-              style={styles.input}
-              disabled={!selectedProvider}
-            >
-              <option value="">
-                Select package
-              </option>
+            <div style={styles.selectWrapper}>
+              <span style={styles.selectIcon}>
+                ⭐
+              </span>
 
-              {providerPlans.map((plan) => (
-                <option
-                  key={plan.cabletv_plan_id}
-                  value={plan.cabletv_plan_id}
-                >
-                  {plan.size} — ₦
-                  {formatMoney(
-                    plan.price_for_basicuser
-                  )}
+              <select
+                value={
+                  selectedPlan?.cabletv_plan_id ||
+                  ""
+                }
+                onChange={
+                  handlePlanChange
+                }
+                style={
+                  styles.select
+                }
+                disabled={
+                  !selectedProvider
+                }
+              >
+                <option value="">
+                  {selectedProvider
+                    ? "Select package"
+                    : "Select provider first"}
                 </option>
-              ))}
-            </select>
+
+                {providerPlans.map(
+                  (plan) => (
+                    <option
+                      key={
+                        plan.cabletv_plan_id
+                      }
+                      value={
+                        plan.cabletv_plan_id
+                      }
+                    >
+                      {plan.size} — ₦
+                      {formatMoney(
+                        plan.price_for_basicuser
+                      )}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
           </div>
 
+          {/* PLAN SUMMARY */}
+
           {selectedPlan && (
-            <div style={styles.planBox}>
-              <div>
-                <span style={styles.smallLabel}>
-                  Package
-                </span>
+            <div style={styles.planCard}>
+              <div style={styles.planHeader}>
+                <div>
+                  <span style={styles.planEyebrow}>
+                    SELECTED PACKAGE
+                  </span>
 
-                <strong>
-                  {selectedPlan.size}
-                </strong>
-              </div>
+                  <h3 style={styles.planTitle}>
+                    {selectedPlan.size}
+                  </h3>
+                </div>
 
-              <div>
-                <span style={styles.smallLabel}>
-                  Price
-                </span>
-
-                <strong>
+                <div style={styles.planPrice}>
                   ₦
                   {formatMoney(
                     selectedPlan.price_for_basicuser
                   )}
-                </strong>
+                </div>
               </div>
 
-              <div>
-                <span style={styles.smallLabel}>
-                  Duration
-                </span>
+              <div style={styles.planDetails}>
+                <div style={styles.planDetail}>
+                  <span style={styles.detailIcon}>
+                    📺
+                  </span>
 
-                <strong>
-                  {selectedPlan.duration} days
-                </strong>
+                  <div>
+                    <span
+                      style={
+                        styles.detailLabel
+                      }
+                    >
+                      Provider
+                    </span>
+
+                    <strong>
+                      {selectedProvider}
+                    </strong>
+                  </div>
+                </div>
+
+                <div style={styles.planDetail}>
+                  <span style={styles.detailIcon}>
+                    📅
+                  </span>
+
+                  <div>
+                    <span
+                      style={
+                        styles.detailLabel
+                      }
+                    >
+                      Duration
+                    </span>
+
+                    <strong>
+                      {
+                        selectedPlan.duration
+                      }{" "}
+                      days
+                    </strong>
+                  </div>
+                </div>
               </div>
             </div>
           )}
+
+          {/* SMART CARD */}
 
           <div style={styles.section}>
             <label style={styles.label}>
@@ -647,20 +855,46 @@ const CableTvPurchase = () => {
             </label>
 
             <div style={styles.inputRow}>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={smartCardNumber}
-                onChange={(event) => {
-                  setSmartCardNumber(
-                    event.target.value
-                  );
-                  setCustomer(null);
-                  setReceipt(null);
-                }}
-                placeholder="Enter Smart Card / IUC number"
-                style={styles.input}
-              />
+              <div
+                style={
+                  styles.inputWrapper
+                }
+              >
+                <span
+                  style={
+                    styles.inputIcon
+                  }
+                >
+                  #
+                </span>
+
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={
+                    smartCardNumber
+                  }
+                  onChange={(
+                    event
+                  ) => {
+                    setSmartCardNumber(
+                      event.target.value
+                    );
+
+                    setCustomer(
+                      null
+                    );
+
+                    setReceipt(
+                      null
+                    );
+                  }}
+                  placeholder="Enter Smart Card / IUC number"
+                  style={
+                    styles.input
+                  }
+                />
+              </div>
 
               <button
                 type="button"
@@ -672,32 +906,87 @@ const CableTvPurchase = () => {
                   !selectedProvider ||
                   !smartCardNumber.trim()
                 }
-                style={styles.verifyButton}
+                style={{
+                  ...styles.verifyButton,
+                  ...(verifying
+                    ? styles.disabledButton
+                    : {}),
+                }}
               >
-                {verifying
-                  ? "Verifying..."
-                  : "Verify"}
+                {verifying ? (
+                  <>
+                    <span
+                      style={
+                        styles.buttonSpinner
+                      }
+                    />
+                    Verifying
+                  </>
+                ) : (
+                  <>
+                    ✓ Verify
+                  </>
+                )}
               </button>
             </div>
 
-            <p style={styles.hint}>
-              Sandbox test number:{" "}
+            <div style={styles.sandboxHint}>
+              <span>🧪</span>
+
+              Sandbox test number:
+              {" "}
               <strong>
                 1212121212
               </strong>
-            </p>
+            </div>
           </div>
 
+          {/* CUSTOMER */}
+
           {customer && (
-            <div style={styles.customerBox}>
-              <div style={styles.successTitle}>
-                ✓ Customer Verified
+            <div style={styles.customerCard}>
+              <div
+                style={
+                  styles.customerHeader
+                }
+              >
+                <div
+                  style={
+                    styles.customerCheck
+                  }
+                >
+                  ✓
+                </div>
+
+                <div>
+                  <strong
+                    style={
+                      styles.customerTitle
+                    }
+                  >
+                    Customer Verified
+                  </strong>
+
+                  <span
+                    style={
+                      styles.customerSubtitle
+                    }
+                  >
+                    Customer details confirmed
+                  </span>
+                </div>
               </div>
 
-              <div style={styles.customerGrid}>
+              <div
+                style={
+                  styles.customerGrid
+                }
+              >
                 <div>
                   <span
-                    style={styles.smallLabel}
+                    style={
+                      styles.detailLabel
+                    }
                   >
                     Customer Name
                   </span>
@@ -711,7 +1000,9 @@ const CableTvPurchase = () => {
 
                 <div>
                   <span
-                    style={styles.smallLabel}
+                    style={
+                      styles.detailLabel
+                    }
                   >
                     Smart Card / IUC
                   </span>
@@ -723,7 +1014,9 @@ const CableTvPurchase = () => {
 
                 <div>
                   <span
-                    style={styles.smallLabel}
+                    style={
+                      styles.detailLabel
+                    }
                   >
                     Address
                   </span>
@@ -738,10 +1031,51 @@ const CableTvPurchase = () => {
             </div>
           )}
 
+          {/* PURCHASE */}
+
           <div style={styles.purchaseArea}>
+            <div style={styles.purchaseSummary}>
+              <div>
+                <span
+                  style={
+                    styles.summaryLabel
+                  }
+                >
+                  You will pay
+                </span>
+
+                <strong
+                  style={
+                    styles.summaryAmount
+                  }
+                >
+                  ₦
+                  {formatMoney(
+                    selectedPlan?.price_for_basicuser ||
+                      0
+                  )}
+                </strong>
+              </div>
+
+              <div style={styles.balanceMini}>
+                <span>
+                  Balance
+                </span>
+
+                <strong>
+                  ₦
+                  {formatMoney(
+                    walletBalance
+                  )}
+                </strong>
+              </div>
+            </div>
+
             <button
               type="button"
-              onClick={handlePurchase}
+              onClick={
+                handlePurchase
+              }
               disabled={
                 purchasing ||
                 !selectedPlan ||
@@ -750,39 +1084,91 @@ const CableTvPurchase = () => {
                   selectedPlan?.price_for_basicuser
                 ) > walletBalance
               }
-              style={styles.purchaseButton}
+              style={{
+                ...styles.purchaseButton,
+                ...(
+                  purchasing ||
+                  !selectedPlan ||
+                  !customer ||
+                  Number(
+                    selectedPlan?.price_for_basicuser
+                  ) > walletBalance
+                    ? styles.purchaseButtonDisabled
+                    : {}
+                ),
+              }}
             >
-              {purchasing
-                ? "Processing..."
-                : selectedPlan
-                ? `Subscribe — ₦${formatMoney(
-                    selectedPlan.price_for_basicuser
-                  )}`
-                : "Subscribe"}
+              {purchasing ? (
+                <>
+                  <span
+                    style={
+                      styles.buttonSpinner
+                    }
+                  />
+                  Processing Subscription...
+                </>
+              ) : (
+                <>
+                  Subscribe Now
+                  <span
+                    style={
+                      styles.arrow
+                    }
+                  >
+                    →
+                  </span>
+                </>
+              )}
             </button>
 
             {selectedPlan &&
               Number(
                 selectedPlan.price_for_basicuser
               ) > walletBalance && (
-                <p style={styles.insufficient}>
-                  Insufficient wallet balance.
+                <div
+                  style={
+                    styles.insufficient
+                  }
+                >
+                  ⚠️ Insufficient wallet balance.
                   Please fund your wallet first.
-                </p>
+                </div>
               )}
           </div>
         </div>
 
+        {/* RECEIPT */}
+
         {receipt && (
           <div style={styles.receipt}>
-            <div style={styles.receiptHeader}>
-              <div>
-                <div style={styles.receiptSuccess}>
-                  ✓ Subscription Successful
-                </div>
+            <div
+              style={
+                styles.receiptTop
+              }
+            >
+              <div
+                style={
+                  styles.receiptSuccessIcon
+                }
+              >
+                ✓
+              </div>
 
-                <h2 style={styles.receiptTitle}>
-                  Cable TV Receipt
+              <div>
+                <span
+                  style={
+                    styles.receiptSuccess
+                  }
+                >
+                  Payment Successful
+                </span>
+
+                <h2
+                  style={
+                    styles.receiptTitle
+                  }
+                >
+                  Cable TV Subscription
                 </h2>
               </div>
 
@@ -791,16 +1177,30 @@ const CableTvPurchase = () => {
                 onClick={() =>
                   setReceipt(null)
                 }
-                style={styles.closeButton}
+                style={
+                  styles.closeButton
+                }
               >
                 ×
               </button>
             </div>
 
-            <div style={styles.receiptGrid}>
+            <div
+              style={
+                styles.receiptDivider
+              }
+            />
+
+            <div
+              style={
+                styles.receiptGrid
+              }
+            >
               <div>
                 <span
-                  style={styles.smallLabel}
+                  style={
+                    styles.detailLabel
+                  }
                 >
                   Provider
                 </span>
@@ -812,7 +1212,9 @@ const CableTvPurchase = () => {
 
               <div>
                 <span
-                  style={styles.smallLabel}
+                  style={
+                    styles.detailLabel
+                  }
                 >
                   Package
                 </span>
@@ -824,7 +1226,9 @@ const CableTvPurchase = () => {
 
               <div>
                 <span
-                  style={styles.smallLabel}
+                  style={
+                    styles.detailLabel
+                  }
                 >
                   Smart Card / IUC
                 </span>
@@ -836,19 +1240,26 @@ const CableTvPurchase = () => {
 
               <div>
                 <span
-                  style={styles.smallLabel}
+                  style={
+                    styles.detailLabel
+                  }
                 >
                   Amount
                 </span>
 
                 <strong>
-                  ₦{formatMoney(receipt.amount)}
+                  ₦
+                  {formatMoney(
+                    receipt.amount
+                  )}
                 </strong>
               </div>
 
               <div>
                 <span
-                  style={styles.smallLabel}
+                  style={
+                    styles.detailLabel
+                  }
                 >
                   Duration
                 </span>
@@ -860,19 +1271,69 @@ const CableTvPurchase = () => {
 
               <div>
                 <span
-                  style={styles.smallLabel}
+                  style={
+                    styles.detailLabel
+                  }
                 >
                   Provider Reference
                 </span>
 
-                <strong>
+                <strong
+                  style={
+                    styles.reference
+                  }
+                >
                   {receipt.providerReference ||
                     "N/A"}
                 </strong>
               </div>
             </div>
+
+            <div
+              style={
+                styles.receiptFooter
+              }
+            >
+              <span>
+                INSTANT LOAD
+              </span>
+
+              <span>
+                Cable TV subscription receipt
+              </span>
+            </div>
           </div>
         )}
+
+        {/* TRUST */}
+
+        <div style={styles.trust}>
+          <div style={styles.trustItem}>
+            <span>🔒</span>
+            <span>Secure payment</span>
+          </div>
+
+          <div style={styles.trustItem}>
+            <span>⚡</span>
+            <span>Instant processing</span>
+          </div>
+
+          <div style={styles.trustItem}>
+            <span>✓</span>
+            <span>Reliable service</span>
+          </div>
+        </div>
+
+        {/* SANDBOX */}
+
+        <div style={styles.sandboxNotice}>
+          <span>🧪</span>
+
+          <span>
+            Cable TV services are currently
+            running in sandbox mode.
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -881,88 +1342,310 @@ const CableTvPurchase = () => {
 const styles = {
   page: {
     minHeight: "100vh",
-    background: "#f5f7fb",
-    padding: "40px 20px",
+    background:
+      "linear-gradient(135deg, #f5f8ff 0%, #eef3ff 100%)",
+    padding:
+      "35px 20px 60px",
     boxSizing: "border-box",
+    fontFamily:
+      "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   },
 
   container: {
-    maxWidth: "900px",
+    maxWidth: "960px",
     margin: "0 auto",
   },
 
-  loading: {
+  loadingCard: {
+    maxWidth: "420px",
+    margin: "100px auto",
+    background: "#fff",
+    borderRadius: "24px",
+    padding: "45px 30px",
     textAlign: "center",
-    padding: "80px 20px",
-    fontSize: "18px",
+    boxShadow:
+      "0 20px 60px rgba(30,64,175,0.10)",
+  },
+
+  loadingIcon: {
+    width: "70px",
+    height: "70px",
+    borderRadius: "20px",
+    background:
+      "linear-gradient(135deg, #2563eb, #4f46e5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    margin: "0 auto 20px",
+    fontSize: "30px",
+  },
+
+  loadingTitle: {
+    margin: 0,
+    color: "#111827",
+    fontSize: "23px",
+  },
+
+  loadingText: {
+    color: "#6b7280",
+    margin:
+      "8px 0 22px",
+  },
+
+  spinner: {
+    width: "28px",
+    height: "28px",
+    border:
+      "3px solid #dbeafe",
+    borderTop:
+      "3px solid #2563eb",
+    borderRadius: "50%",
+    margin: "0 auto",
+    animation:
+      "spin 1s linear infinite",
   },
 
   header: {
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: "20px",
-    marginBottom: "25px",
+    justifyContent:
+      "space-between",
+    alignItems: "center",
+    gap: "25px",
+    marginBottom: "28px",
     flexWrap: "wrap",
+  },
+
+  brandBadge: {
+    display: "inline-block",
+    background: "#dbeafe",
+    color: "#1d4ed8",
+    padding:
+      "6px 11px",
+    borderRadius: "20px",
+    fontSize: "11px",
+    fontWeight: 800,
+    letterSpacing: "1px",
+    marginBottom: "9px",
   },
 
   title: {
     margin: 0,
-    fontSize: "30px",
     color: "#111827",
+    fontSize: "34px",
+    fontWeight: 800,
+    letterSpacing: "-0.8px",
   },
 
   subtitle: {
-    marginTop: "8px",
+    margin:
+      "7px 0 0",
     color: "#6b7280",
+    fontSize: "15px",
   },
 
-  wallet: {
-    background: "#111827",
+  walletCard: {
+    minWidth: "205px",
+    background:
+      "linear-gradient(135deg, #111827, #1e3a8a)",
     color: "#fff",
-    borderRadius: "14px",
-    padding: "16px 20px",
-    minWidth: "180px",
+    borderRadius: "18px",
+    padding:
+      "18px 20px",
+    boxShadow:
+      "0 12px 30px rgba(30,58,138,0.20)",
   },
 
-  walletLabel: {
-    display: "block",
+  walletTop: {
+    display: "flex",
+    justifyContent:
+      "space-between",
+    alignItems: "center",
     fontSize: "12px",
-    opacity: 0.75,
-    marginBottom: "5px",
+    opacity: 0.78,
+    marginBottom: "8px",
+  },
+
+  walletIcon: {
+    width: "25px",
+    height: "25px",
+    borderRadius: "8px",
+    background:
+      "rgba(255,255,255,0.15)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 800,
   },
 
   walletAmount: {
-    fontSize: "22px",
+    fontSize: "24px",
+    letterSpacing: "-0.5px",
   },
 
   card: {
     background: "#fff",
-    borderRadius: "18px",
-    padding: "28px",
+    borderRadius: "24px",
+    padding: "30px",
     boxShadow:
-      "0 8px 30px rgba(0,0,0,0.06)",
+      "0 15px 50px rgba(15,23,42,0.08)",
   },
 
   section: {
-    marginBottom: "22px",
+    marginBottom: "24px",
   },
 
   label: {
     display: "block",
-    fontWeight: 600,
-    marginBottom: "8px",
+    fontSize: "14px",
+    fontWeight: 700,
     color: "#374151",
+    marginBottom: "9px",
   },
 
-  input: {
+  selectWrapper: {
+    position: "relative",
+  },
+
+  selectIcon: {
+    position: "absolute",
+    left: "14px",
+    top: "50%",
+    transform:
+      "translateY(-50%)",
+    zIndex: 2,
+    fontSize: "17px",
+  },
+
+  select: {
     width: "100%",
     boxSizing: "border-box",
-    padding: "13px 14px",
-    border: "1px solid #d1d5db",
-    borderRadius: "10px",
-    fontSize: "15px",
+    padding:
+      "14px 15px 14px 45px",
+    border:
+      "1px solid #dbe2ea",
+    borderRadius: "13px",
     background: "#fff",
+    color: "#111827",
+    fontSize: "15px",
+    outline: "none",
+  },
+
+  providerTiles: {
+    display: "flex",
+    gap: "10px",
+    flexWrap: "wrap",
+    marginTop: "-10px",
+    marginBottom: "25px",
+  },
+
+  providerTile: {
+    border:
+      "1px solid #e5e7eb",
+    background: "#fff",
+    color: "#4b5563",
+    borderRadius: "12px",
+    padding:
+      "10px 14px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    cursor: "pointer",
+    fontWeight: 700,
+    fontSize: "13px",
+  },
+
+  providerTileActive: {
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    border:
+      "1px solid #93c5fd",
+  },
+
+  providerTileIcon: {
+    width: "25px",
+    height: "25px",
+    borderRadius: "8px",
+    background: "#f3f4f6",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "13px",
+  },
+
+  providerTileIconActive: {
+    background: "#dbeafe",
+  },
+
+  planCard: {
+    background:
+      "linear-gradient(135deg, #eff6ff, #f5f3ff)",
+    border:
+      "1px solid #dbeafe",
+    borderRadius: "17px",
+    padding: "19px",
+    marginBottom: "25px",
+  },
+
+  planHeader: {
+    display: "flex",
+    justifyContent:
+      "space-between",
+    alignItems: "center",
+    gap: "20px",
+  },
+
+  planEyebrow: {
+    display: "block",
+    fontSize: "10px",
+    fontWeight: 800,
+    color: "#6366f1",
+    letterSpacing: "1px",
+    marginBottom: "5px",
+  },
+
+  planTitle: {
+    margin: 0,
+    color: "#111827",
+    fontSize: "21px",
+  },
+
+  planPrice: {
+    fontSize: "20px",
+    fontWeight: 800,
+    color: "#1d4ed8",
+  },
+
+  planDetails: {
+    display: "flex",
+    gap: "25px",
+    marginTop: "17px",
+    paddingTop: "15px",
+    borderTop:
+      "1px solid rgba(148,163,184,0.25)",
+    flexWrap: "wrap",
+  },
+
+  planDetail: {
+    display: "flex",
+    alignItems: "center",
+    gap: "9px",
+  },
+
+  detailIcon: {
+    width: "34px",
+    height: "34px",
+    borderRadius: "10px",
+    background: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  detailLabel: {
+    display: "block",
+    color: "#6b7280",
+    fontSize: "11px",
+    marginBottom: "3px",
   },
 
   inputRow: {
@@ -971,127 +1654,303 @@ const styles = {
     alignItems: "stretch",
   },
 
+  inputWrapper: {
+    flex: 1,
+    position: "relative",
+  },
+
+  inputIcon: {
+    position: "absolute",
+    left: "15px",
+    top: "50%",
+    transform:
+      "translateY(-50%)",
+    color: "#6b7280",
+    fontWeight: 800,
+  },
+
+  input: {
+    width: "100%",
+    boxSizing: "border-box",
+    padding:
+      "14px 15px 14px 40px",
+    border:
+      "1px solid #dbe2ea",
+    borderRadius: "13px",
+    fontSize: "15px",
+    outline: "none",
+    color: "#111827",
+  },
+
   verifyButton: {
     border: "none",
-    borderRadius: "10px",
-    padding: "0 22px",
-    background: "#374151",
+    borderRadius: "13px",
+    padding:
+      "0 23px",
+    background:
+      "linear-gradient(135deg, #374151, #111827)",
     color: "#fff",
-    fontWeight: 600,
+    fontWeight: 700,
+    fontSize: "14px",
     cursor: "pointer",
     whiteSpace: "nowrap",
   },
 
-  hint: {
-    fontSize: "13px",
+  disabledButton: {
+    opacity: 0.65,
+    cursor: "not-allowed",
+  },
+
+  sandboxHint: {
+    marginTop: "9px",
     color: "#6b7280",
-    marginTop: "8px",
-  },
-
-  planBox: {
-    display: "grid",
-    gridTemplateColumns:
-      "repeat(auto-fit, minmax(150px, 1fr))",
-    gap: "15px",
-    background: "#f9fafb",
-    borderRadius: "12px",
-    padding: "16px",
-    marginBottom: "22px",
-  },
-
-  smallLabel: {
-    display: "block",
     fontSize: "12px",
-    color: "#6b7280",
-    marginBottom: "5px",
   },
 
-  customerBox: {
+  customerCard: {
     background: "#ecfdf5",
-    border: "1px solid #a7f3d0",
-    borderRadius: "12px",
-    padding: "18px",
-    marginBottom: "22px",
+    border:
+      "1px solid #a7f3d0",
+    borderRadius: "17px",
+    padding: "20px",
+    marginBottom: "25px",
   },
 
-  successTitle: {
+  customerHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    marginBottom: "18px",
+  },
+
+  customerCheck: {
+    width: "39px",
+    height: "39px",
+    borderRadius: "12px",
+    background: "#10b981",
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 900,
+    fontSize: "18px",
+  },
+
+  customerTitle: {
+    display: "block",
     color: "#047857",
-    fontWeight: 700,
-    marginBottom: "15px",
+    fontSize: "15px",
+  },
+
+  customerSubtitle: {
+    display: "block",
+    color: "#6b7280",
+    fontSize: "12px",
+    marginTop: "2px",
   },
 
   customerGrid: {
     display: "grid",
     gridTemplateColumns:
-      "repeat(auto-fit, minmax(200px, 1fr))",
-    gap: "16px",
+      "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: "18px",
   },
 
   purchaseArea: {
-    marginTop: "10px",
+    marginTop: "28px",
+  },
+
+  purchaseSummary: {
+    display: "flex",
+    justifyContent:
+      "space-between",
+    alignItems: "center",
+    gap: "15px",
+    background: "#f9fafb",
+    borderRadius: "15px",
+    padding:
+      "15px 17px",
+    marginBottom: "12px",
+  },
+
+  summaryLabel: {
+    display: "block",
+    color: "#6b7280",
+    fontSize: "11px",
+    marginBottom: "3px",
+  },
+
+  summaryAmount: {
+    fontSize: "20px",
+    color: "#111827",
+  },
+
+  balanceMini: {
+    textAlign: "right",
+    color: "#6b7280",
+    fontSize: "11px",
   },
 
   purchaseButton: {
     width: "100%",
-    padding: "15px",
     border: "none",
-    borderRadius: "11px",
-    background: "#111827",
+    borderRadius: "14px",
+    padding: "16px",
+    background:
+      "linear-gradient(135deg, #2563eb, #4f46e5)",
     color: "#fff",
     fontSize: "16px",
-    fontWeight: 700,
+    fontWeight: 800,
     cursor: "pointer",
+    boxShadow:
+      "0 10px 25px rgba(37,99,235,0.22)",
+  },
+
+  purchaseButtonDisabled: {
+    opacity: 0.55,
+    cursor: "not-allowed",
+    boxShadow: "none",
+  },
+
+  arrow: {
+    marginLeft: "10px",
+    fontSize: "20px",
   },
 
   insufficient: {
     textAlign: "center",
     color: "#dc2626",
-    fontSize: "14px",
+    fontSize: "13px",
     marginTop: "10px",
   },
 
-  receipt: {
-    background: "#fff",
-    borderRadius: "18px",
-    padding: "28px",
-    marginTop: "25px",
-    boxShadow:
-      "0 8px 30px rgba(0,0,0,0.06)",
+  buttonSpinner: {
+    display: "inline-block",
+    width: "14px",
+    height: "14px",
+    border:
+      "2px solid rgba(255,255,255,0.35)",
+    borderTop:
+      "2px solid #fff",
+    borderRadius: "50%",
+    marginRight: "8px",
+    verticalAlign: "-2px",
   },
 
-  receiptHeader: {
+  receipt: {
+    marginTop: "25px",
+    background: "#fff",
+    borderRadius: "24px",
+    padding: "27px",
+    boxShadow:
+      "0 15px 50px rgba(15,23,42,0.08)",
+    border:
+      "1px solid #d1fae5",
+  },
+
+  receiptTop: {
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: "25px",
+    alignItems: "center",
+    gap: "12px",
+  },
+
+  receiptSuccessIcon: {
+    width: "44px",
+    height: "44px",
+    borderRadius: "14px",
+    background: "#10b981",
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "21px",
+    fontWeight: 900,
   },
 
   receiptSuccess: {
+    display: "block",
     color: "#059669",
-    fontWeight: 700,
-    marginBottom: "6px",
+    fontSize: "12px",
+    fontWeight: 800,
   },
 
   receiptTitle: {
-    margin: 0,
-    fontSize: "24px",
+    margin:
+      "3px 0 0",
+    fontSize: "22px",
+    color: "#111827",
   },
 
   closeButton: {
-    border: "none",
-    background: "#f3f4f6",
+    marginLeft: "auto",
     width: "36px",
     height: "36px",
+    border: "none",
     borderRadius: "50%",
+    background: "#f3f4f6",
+    color: "#4b5563",
     fontSize: "22px",
     cursor: "pointer",
+  },
+
+  receiptDivider: {
+    height: "1px",
+    background: "#e5e7eb",
+    margin:
+      "22px 0",
   },
 
   receiptGrid: {
     display: "grid",
     gridTemplateColumns:
-      "repeat(auto-fit, minmax(200px, 1fr))",
+      "repeat(auto-fit, minmax(190px, 1fr))",
     gap: "20px",
+  },
+
+  reference: {
+    wordBreak: "break-all",
+    fontSize: "13px",
+  },
+
+  receiptFooter: {
+    display: "flex",
+    justifyContent:
+      "space-between",
+    gap: "10px",
+    marginTop: "25px",
+    paddingTop: "16px",
+    borderTop:
+      "1px dashed #d1d5db",
+    color: "#9ca3af",
+    fontSize: "11px",
+  },
+
+  trust: {
+    display: "flex",
+    justifyContent: "center",
+    gap: "28px",
+    flexWrap: "wrap",
+    marginTop: "25px",
+    color: "#6b7280",
+    fontSize: "12px",
+  },
+
+  trustItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  },
+
+  sandboxNotice: {
+    marginTop: "20px",
+    textAlign: "center",
+    color: "#6b7280",
+    fontSize: "12px",
+    padding:
+      "10px 15px",
+    background:
+      "rgba(255,255,255,0.65)",
+    borderRadius: "10px",
   },
 };
 

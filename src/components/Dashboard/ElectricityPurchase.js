@@ -52,13 +52,6 @@ const ElectricityPurchase = () => {
     const unsubscribe = onAuthStateChanged(
       auth,
       (authUser) => {
-        console.log(
-          "AUTH USER:",
-          authUser
-            ? authUser.email
-            : "No user logged in"
-        );
-
         setUser(authUser);
       }
     );
@@ -82,11 +75,6 @@ const ElectricityPurchase = () => {
 
         const token =
           await user.getIdToken();
-
-        console.log(
-          "Loading electricity providers from:",
-          `${apiUrl}/api/vtu/electricity-providers`
-        );
 
         const response = await axios.get(
           `${apiUrl}/api/vtu/electricity-providers`,
@@ -155,11 +143,6 @@ const ElectricityPurchase = () => {
             payload.data.data;
         }
 
-        console.log(
-          "RAW ELECTRICITY PROVIDER LIST:",
-          providerData
-        );
-
         if (
           !Array.isArray(providerData) ||
           providerData.length === 0
@@ -173,9 +156,6 @@ const ElectricityPurchase = () => {
           return;
         }
 
-        /*
-         * NORMALIZE PROVIDERS
-         */
         const normalizedProviders =
           providerData
             .map((provider, index) => {
@@ -234,22 +214,9 @@ const ElectricityPurchase = () => {
                 provider.name
             );
 
-        console.log(
-          "FINAL PROVIDERS FOR DROPDOWN:",
-          normalizedProviders
-        );
-
         setProviders(
           normalizedProviders
         );
-
-        if (
-          normalizedProviders.length === 0
-        ) {
-          toast.error(
-            "Electricity provider data could not be read."
-          );
-        }
       } catch (error) {
         console.error(
           "Electricity providers error:",
@@ -342,11 +309,6 @@ const ElectricityPurchase = () => {
     const value =
       e.target.value;
 
-    console.log(
-      "SELECTED ELECTRICITY PROVIDER:",
-      value
-    );
-
     setDiscoName(value);
 
     setMeterVerified(false);
@@ -409,9 +371,6 @@ const ElectricityPurchase = () => {
       setMeterDetails(null);
       setPurchaseResult(null);
 
-      /*
-       * SANDBOX TEST METER
-       */
       if (
         String(meterNumber) ===
         "1111111111111"
@@ -423,15 +382,6 @@ const ElectricityPurchase = () => {
 
       const token =
         await user.getIdToken();
-
-      console.log(
-        "VERIFYING ELECTRICITY METER:",
-        {
-          discoName,
-          meterNumber,
-          meterType,
-        }
-      );
 
       const response =
         await axios.post(
@@ -455,21 +405,6 @@ const ElectricityPurchase = () => {
         response.data
       );
 
-      /*
-       * IMPORTANT:
-       *
-       * VTU Naija returns:
-       *
-       * status: "success"
-       *
-       * Status: "successful"
-       *
-       * instead of:
-       *
-       * success: true
-       *
-       * So we accept all three.
-       */
       if (
         response.data?.success === true ||
         response.data?.status === "success" ||
@@ -510,9 +445,6 @@ const ElectricityPurchase = () => {
         return;
       }
 
-      /*
-       * PROVIDER RETURNED A REAL FAILURE
-       */
       setMeterVerified(false);
 
       toast.error(
@@ -530,13 +462,6 @@ const ElectricityPurchase = () => {
       const errorData =
         error.response?.data;
 
-      /*
-       * SANDBOX FALLBACK
-       *
-       * This allows the known sandbox
-       * meter to be used if the provider
-       * temporarily rejects the request.
-       */
       if (
         String(meterNumber) ===
         "1111111111111"
@@ -647,17 +572,6 @@ const ElectricityPurchase = () => {
       const token =
         await user.getIdToken();
 
-      console.log(
-        "BUYING ELECTRICITY:",
-        {
-          discoName,
-          meterNumber,
-          meterType,
-          amount:
-            electricityAmount,
-        }
-      );
-
       const response =
         await axios.post(
           `${apiUrl}/api/vtu/buy-electricity`,
@@ -742,387 +656,997 @@ const ElectricityPurchase = () => {
     }
   };
 
+  const verifiedCustomerName =
+    meterDetails?.customerName ||
+    meterDetails?.customer_name ||
+    meterDetails?.customerName ||
+    meterDetails?.name ||
+    "";
+
   return (
-    <div className="container mt-4">
-      <h3>Electricity Purchase</h3>
+    <div
+      style={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(180deg, #f5f9ff 0%, #eef4ff 100%)",
+        padding: "30px 20px 50px",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "900px",
+          margin: "0 auto",
+        }}
+      >
+        {/* HEADER */}
 
-      {/* PROVIDER */}
-      <div className="mb-3">
-        <label className="form-label">
-          Electricity Provider
-        </label>
-
-        <select
-          className="form-select"
-          value={discoName}
-          onChange={
-            handleProviderChange
-          }
-          disabled={
-            loadingProviders ||
-            providers.length === 0
-          }
-        >
-          <option value="">
-            {loadingProviders
-              ? "Loading providers..."
-              : providers.length === 0
-              ? "No providers available"
-              : "Select provider"}
-          </option>
-
-          {providers.map(
-            (
-              provider,
-              index
-            ) => (
-              <option
-                key={
-                  provider.id ||
-                  index
-                }
-                value={
-                  provider.value
-                }
-              >
-                {provider.name}
-              </option>
-            )
-          )}
-        </select>
-
-        {!loadingProviders &&
-          providers.length > 0 && (
-            <small className="text-muted">
-              {providers.length} electricity
-              {" "}
-              providers available
-            </small>
-          )}
-
-        {!loadingProviders &&
-          providers.length === 0 && (
-            <small className="text-danger">
-              No electricity providers
-              are available.
-            </small>
-          )}
-      </div>
-
-      {/* METER TYPE */}
-      <div className="mb-3">
-        <label className="form-label">
-          Meter Type
-        </label>
-
-        <select
-          className="form-select"
-          value={meterType}
-          onChange={(e) => {
-            setMeterType(
-              e.target.value
-            );
-
-            setMeterVerified(false);
-            setMeterDetails(null);
-            setPurchaseResult(null);
+        <div
+          style={{
+            marginBottom: "25px",
           }}
         >
-          <option value="prepaid">
-            Prepaid
-          </option>
-
-          <option value="postpaid">
-            Postpaid
-          </option>
-        </select>
-      </div>
-
-      {/* METER NUMBER */}
-      <div className="mb-3">
-        <label className="form-label">
-          Meter Number
-        </label>
-
-        <input
-          type="text"
-          className="form-control"
-          placeholder="Enter meter number"
-          value={meterNumber}
-          onChange={
-            handleMeterNumberChange
-          }
-          maxLength="15"
-        />
-      </div>
-
-      {/* VERIFY BUTTON */}
-      <button
-        type="button"
-        className="btn btn-secondary mb-3"
-        onClick={
-          handleVerifyMeter
-        }
-        disabled={
-          verifyingMeter ||
-          !discoName ||
-          !meterNumber
-        }
-      >
-        {verifyingMeter
-          ? "Verifying..."
-          : "Verify Meter"}
-      </button>
-
-      {/* VERIFIED METER */}
-      {meterVerified &&
-        meterDetails && (
-          <div className="alert alert-success">
-            <strong>
-              Meter verified
-            </strong>
-
-            <div className="mt-2">
-              Meter:
-              {" "}
-              {meterNumber}
-            </div>
-
-            <div>
-              Type:
-              {" "}
-              {meterType}
-            </div>
-
-            {meterDetails.customerName && (
-              <div>
-                Customer:
-                {" "}
-                {
-                  meterDetails.customerName
-                }
-              </div>
-            )}
-
-            {meterDetails.customer_name && (
-              <div>
-                Customer:
-                {" "}
-                {
-                  meterDetails.customer_name
-                }
-              </div>
-            )}
-
-            {meterDetails.name && (
-              <div>
-                Customer:
-                {" "}
-                {meterDetails.name}
-              </div>
-            )}
-          </div>
-        )}
-
-      {/* AMOUNT */}
-      <div className="mb-3">
-        <label className="form-label">
-          Electricity Amount (₦)
-        </label>
-
-        <input
-          type="number"
-          className="form-control"
-          placeholder="Enter electricity amount"
-          value={amount}
-          onChange={(e) =>
-            setAmount(
-              e.target.value
-            )
-          }
-          min="1"
-          step="1"
-        />
-      </div>
-
-      {/* PRICE */}
-      {electricityAmount > 0 && (
-        <div className="alert alert-info">
-          <div>
-            Electricity amount:
-            {" "}
-            ₦
-            {electricityAmount.toLocaleString()}
+          <div
+            style={{
+              color: "#2563eb",
+              fontSize: "14px",
+              fontWeight: "700",
+              letterSpacing: "1px",
+              marginBottom: "6px",
+            }}
+          >
+            INSTANT LOAD
           </div>
 
-          <div>
-            Service charge:
-            {" "}
-            ₦
-            {ELECTRICITY_MARKUP.toLocaleString()}
-          </div>
+          <h2
+            style={{
+              margin: 0,
+              color: "#0f172a",
+              fontSize: "32px",
+              fontWeight: "800",
+            }}
+          >
+            Electricity
+          </h2>
 
-          <strong>
-            You will pay:
-            {" "}
-            ₦
-            {sellingPrice.toLocaleString()}
-          </strong>
+          <p
+            style={{
+              marginTop: "8px",
+              color: "#64748b",
+              fontSize: "15px",
+            }}
+          >
+            Pay your electricity bill quickly
+            and securely.
+          </p>
         </div>
-      )}
 
-      {/* WALLET */}
-      <div className="mb-3">
-        <strong>
-          Wallet Balance:
-          {" "}
-          ₦
-          {walletBalance.toLocaleString()}
-        </strong>
-      </div>
+        {/* WALLET */}
 
-      {/* PURCHASE */}
-      {electricityAmount > 0 && (
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={
-            handlePurchase
-          }
-          disabled={
-            purchasing ||
-            !user ||
-            !meterVerified ||
-            walletBalance <
-              sellingPrice
-          }
-        >
-          {purchasing
-            ? "Processing..."
-            : `Buy Electricity ₦${sellingPrice.toLocaleString()}`}
-        </button>
-      )}
-
-      {/* PURCHASE RESULT */}
-      {purchaseResult && (
         <div
-          className={`alert ${
-            purchaseResult.success
-              ? "alert-success"
-              : "alert-warning"
-          } mt-4`}
+          style={{
+            background:
+              "linear-gradient(135deg, #0f172a, #1e3a8a)",
+            borderRadius: "22px",
+            padding: "22px 25px",
+            color: "#ffffff",
+            marginBottom: "20px",
+            boxShadow:
+              "0 15px 35px rgba(15, 23, 42, 0.15)",
+          }}
         >
-          {purchaseResult.success ? (
-            <>
-              <h5>
-                Electricity Purchase
-                {" "}
-                Successful
-              </h5>
+          <div
+            style={{
+              fontSize: "12px",
+              opacity: 0.75,
+              marginBottom: "5px",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
+            }}
+          >
+            Available Balance
+          </div>
 
-              <p>
-                Amount:
-                {" "}
+          <div
+            style={{
+              fontSize: "28px",
+              fontWeight: "800",
+            }}
+          >
+            ₦
+            {walletBalance.toLocaleString()}
+          </div>
+        </div>
+
+        {/* MAIN CARD */}
+
+        <div
+          style={{
+            background: "#ffffff",
+            borderRadius: "24px",
+            padding: "30px",
+            boxShadow:
+              "0 15px 45px rgba(15, 23, 42, 0.08)",
+            border:
+              "1px solid rgba(226, 232, 240, 0.8)",
+          }}
+        >
+          {/* PROVIDER */}
+
+          <div style={{ marginBottom: "24px" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "10px",
+                color: "#334155",
+                fontSize: "14px",
+                fontWeight: "700",
+              }}
+            >
+              Electricity Provider
+            </label>
+
+            <select
+              value={discoName}
+              onChange={
+                handleProviderChange
+              }
+              disabled={
+                loadingProviders ||
+                providers.length === 0
+              }
+              style={{
+                width: "100%",
+                height: "55px",
+                borderRadius: "14px",
+                border:
+                  "1px solid #dbe3ef",
+                padding: "0 15px",
+                background: "#f8fafc",
+                color: "#0f172a",
+                fontSize: "15px",
+                outline: "none",
+              }}
+            >
+              <option value="">
+                {loadingProviders
+                  ? "Loading providers..."
+                  : providers.length === 0
+                  ? "No providers available"
+                  : "Select electricity provider"}
+              </option>
+
+              {providers.map(
+                (
+                  provider,
+                  index
+                ) => (
+                  <option
+                    key={
+                      provider.id ||
+                      index
+                    }
+                    value={
+                      provider.value
+                    }
+                  >
+                    {provider.name}
+                  </option>
+                )
+              )}
+            </select>
+
+            {!loadingProviders &&
+              providers.length > 0 && (
+                <div
+                  style={{
+                    marginTop: "7px",
+                    color: "#94a3b8",
+                    fontSize: "12px",
+                  }}
+                >
+                  {providers.length} providers
+                  available
+                </div>
+              )}
+          </div>
+
+          {/* METER TYPE */}
+
+          <div style={{ marginBottom: "24px" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "10px",
+                color: "#334155",
+                fontSize: "14px",
+                fontWeight: "700",
+              }}
+            >
+              Meter Type
+            </label>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "1fr 1fr",
+                gap: "12px",
+              }}
+            >
+              {[
+                {
+                  value: "prepaid",
+                  title: "Prepaid",
+                  icon: "⚡",
+                },
+                {
+                  value: "postpaid",
+                  title: "Postpaid",
+                  icon: "🧾",
+                },
+              ].map((item) => {
+                const active =
+                  meterType === item.value;
+
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => {
+                      setMeterType(
+                        item.value
+                      );
+                      setMeterVerified(false);
+                      setMeterDetails(null);
+                      setPurchaseResult(null);
+                    }}
+                    style={{
+                      padding: "15px",
+                      borderRadius: "15px",
+                      border: active
+                        ? "2px solid #2563eb"
+                        : "1px solid #e2e8f0",
+                      background: active
+                        ? "#eff6ff"
+                        : "#ffffff",
+                      color: active
+                        ? "#1d4ed8"
+                        : "#475569",
+                      cursor: "pointer",
+                      fontWeight: "700",
+                      fontSize: "14px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "20px",
+                        marginRight: "8px",
+                      }}
+                    >
+                      {item.icon}
+                    </span>
+
+                    {item.title}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* METER NUMBER */}
+
+          <div style={{ marginBottom: "15px" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "10px",
+                color: "#334155",
+                fontSize: "14px",
+                fontWeight: "700",
+              }}
+            >
+              Meter Number
+            </label>
+
+            <input
+              type="text"
+              placeholder="Enter meter number"
+              value={meterNumber}
+              onChange={
+                handleMeterNumberChange
+              }
+              maxLength="15"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                height: "55px",
+                borderRadius: "14px",
+                border:
+                  "1px solid #dbe3ef",
+                padding: "0 15px",
+                background: "#f8fafc",
+                color: "#0f172a",
+                fontSize: "15px",
+                outline: "none",
+              }}
+            />
+          </div>
+
+          {/* VERIFY */}
+
+          <button
+            type="button"
+            onClick={
+              handleVerifyMeter
+            }
+            disabled={
+              verifyingMeter ||
+              !discoName ||
+              !meterNumber
+            }
+            style={{
+              width: "100%",
+              height: "50px",
+              borderRadius: "14px",
+              border: "1px solid #2563eb",
+              background:
+                verifyingMeter ||
+                !discoName ||
+                !meterNumber
+                  ? "#e2e8f0"
+                  : "#eff6ff",
+              color:
+                verifyingMeter ||
+                !discoName ||
+                !meterNumber
+                  ? "#94a3b8"
+                  : "#2563eb",
+              fontWeight: "800",
+              cursor:
+                verifyingMeter ||
+                !discoName ||
+                !meterNumber
+                  ? "not-allowed"
+                  : "pointer",
+              marginBottom: "20px",
+            }}
+          >
+            {verifyingMeter
+              ? "Verifying meter..."
+              : "✓ Verify Meter"}
+          </button>
+
+          {/* VERIFIED CUSTOMER */}
+
+          {meterVerified &&
+            meterDetails && (
+              <div
+                style={{
+                  background:
+                    "linear-gradient(135deg, #ecfdf5, #f0fdf4)",
+                  border:
+                    "1px solid #bbf7d0",
+                  borderRadius: "18px",
+                  padding: "20px",
+                  marginBottom: "24px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "38px",
+                      height: "38px",
+                      borderRadius: "50%",
+                      background: "#16a34a",
+                      color: "#ffffff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: "800",
+                    }}
+                  >
+                    ✓
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        color: "#166534",
+                        fontSize: "12px",
+                        fontWeight: "700",
+                        textTransform:
+                          "uppercase",
+                      }}
+                    >
+                      Meter verified
+                    </div>
+
+                    <strong
+                      style={{
+                        color: "#14532d",
+                        fontSize: "16px",
+                      }}
+                    >
+                      {verifiedCustomerName ||
+                        "Verified Customer"}
+                    </strong>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    color: "#475569",
+                    fontSize: "13px",
+                    lineHeight: "1.8",
+                  }}
+                >
+                  <div>
+                    <strong>
+                      Meter:
+                    </strong>{" "}
+                    {meterNumber}
+                  </div>
+
+                  <div>
+                    <strong>
+                      Type:
+                    </strong>{" "}
+                    {meterType}
+                  </div>
+                </div>
+              </div>
+            )}
+
+          {/* AMOUNT */}
+
+          <div style={{ marginBottom: "18px" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "10px",
+                color: "#334155",
+                fontSize: "14px",
+                fontWeight: "700",
+              }}
+            >
+              Amount
+            </label>
+
+            <div
+              style={{
+                position: "relative",
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  left: "15px",
+                  top: "50%",
+                  transform:
+                    "translateY(-50%)",
+                  color: "#64748b",
+                  fontWeight: "700",
+                }}
+              >
                 ₦
-                {Number(
-                  purchaseResult.amount ||
+              </span>
+
+              <input
+                type="number"
+                placeholder="Enter amount"
+                value={amount}
+                onChange={(e) =>
+                  setAmount(
+                    e.target.value
+                  )
+                }
+                min="1"
+                step="1"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  height: "55px",
+                  borderRadius: "14px",
+                  border:
+                    "1px solid #dbe3ef",
+                  padding:
+                    "0 15px 0 38px",
+                  background: "#f8fafc",
+                  color: "#0f172a",
+                  fontSize: "16px",
+                  outline: "none",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* PRICE SUMMARY */}
+
+          {electricityAmount > 0 && (
+            <div
+              style={{
+                background:
+                  "linear-gradient(135deg, #eff6ff, #f5f3ff)",
+                borderRadius: "18px",
+                padding: "20px",
+                marginBottom: "20px",
+                border:
+                  "1px solid #dbeafe",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  marginBottom: "10px",
+                  color: "#64748b",
+                  fontSize: "14px",
+                }}
+              >
+                <span>
+                  Electricity
+                </span>
+
+                <span>
+                  ₦
+                  {electricityAmount.toLocaleString()}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  marginBottom: "14px",
+                  color: "#64748b",
+                  fontSize: "14px",
+                }}
+              >
+                <span>
+                  Service charge
+                </span>
+
+                <span>
+                  ₦
+                  {ELECTRICITY_MARKUP.toLocaleString()}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  borderTop:
+                    "1px solid #dbeafe",
+                  paddingTop: "14px",
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <strong
+                  style={{
+                    color: "#0f172a",
+                  }}
+                >
+                  Total
+                </strong>
+
+                <strong
+                  style={{
+                    color: "#2563eb",
+                    fontSize: "24px",
+                  }}
+                >
+                  ₦
+                  {sellingPrice.toLocaleString()}
+                </strong>
+              </div>
+            </div>
+          )}
+
+          {/* WALLET CHECK */}
+
+          {electricityAmount > 0 && (
+            <div
+              style={{
+                marginBottom: "20px",
+                padding: "14px 16px",
+                borderRadius: "14px",
+                background:
+                  walletBalance >=
+                  sellingPrice
+                    ? "#f0fdf4"
+                    : "#fff7ed",
+                color:
+                  walletBalance >=
+                  sellingPrice
+                    ? "#166534"
+                    : "#9a3412",
+                fontSize: "13px",
+                fontWeight: "600",
+              }}
+            >
+              {walletBalance >=
+              sellingPrice
+                ? "✓ You have enough wallet balance for this purchase."
+                : `You need ₦${(
+                    sellingPrice -
+                    walletBalance
+                  ).toLocaleString()} more in your wallet.`}
+            </div>
+          )}
+
+          {/* PURCHASE */}
+
+          {electricityAmount > 0 && (
+            <button
+              type="button"
+              onClick={
+                handlePurchase
+              }
+              disabled={
+                purchasing ||
+                !user ||
+                !meterVerified ||
+                walletBalance <
+                  sellingPrice
+              }
+              style={{
+                width: "100%",
+                height: "58px",
+                border: "none",
+                borderRadius: "15px",
+                background:
+                  purchasing ||
+                  !user ||
+                  !meterVerified ||
+                  walletBalance <
                     sellingPrice
-                ).toLocaleString()}
-              </p>
+                    ? "#cbd5e1"
+                    : "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                color: "#ffffff",
+                fontSize: "15px",
+                fontWeight: "800",
+                cursor:
+                  purchasing ||
+                  !user ||
+                  !meterVerified ||
+                  walletBalance <
+                    sellingPrice
+                    ? "not-allowed"
+                    : "pointer",
+                boxShadow:
+                  purchasing ||
+                  !user ||
+                  !meterVerified ||
+                  walletBalance <
+                    sellingPrice
+                    ? "none"
+                    : "0 10px 25px rgba(37, 99, 235, 0.25)",
+              }}
+            >
+              {purchasing
+                ? "Processing electricity payment..."
+                : `Pay ₦${sellingPrice.toLocaleString()}`}
+            </button>
+          )}
 
-              <p>
-                Meter Number:
-                {" "}
-                {purchaseResult.meterNumber ||
-                  meterNumber}
-              </p>
+          {/* PURCHASE RESULT */}
 
-              <p>
-                Meter Type:
-                {" "}
-                {purchaseResult.meterType ||
-                  meterType}
-              </p>
+          {purchaseResult && (
+            <div
+              style={{
+                marginTop: "25px",
+                borderRadius: "20px",
+                padding: "22px",
+                background:
+                  purchaseResult.success
+                    ? "linear-gradient(135deg, #ecfdf5, #f0fdf4)"
+                    : "linear-gradient(135deg, #fff7ed, #fffbeb)",
+                border:
+                  purchaseResult.success
+                    ? "1px solid #bbf7d0"
+                    : "1px solid #fed7aa",
+              }}
+            >
+              {purchaseResult.success ? (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      marginBottom: "18px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "42px",
+                        height: "42px",
+                        borderRadius: "50%",
+                        background:
+                          "#16a34a",
+                        color: "#ffffff",
+                        display: "flex",
+                        alignItems:
+                          "center",
+                        justifyContent:
+                          "center",
+                        fontSize: "20px",
+                        fontWeight: "800",
+                      }}
+                    >
+                      ✓
+                    </div>
 
-              {purchaseResult.providerReference && (
-                <p>
-                  Provider Reference:
-                  {" "}
-                  {
-                    purchaseResult.providerReference
-                  }
-                </p>
-              )}
+                    <div>
+                      <strong
+                        style={{
+                          display:
+                            "block",
+                          color:
+                            "#166534",
+                          fontSize:
+                            "17px",
+                        }}
+                      >
+                        Electricity Purchase Successful
+                      </strong>
 
-              {purchaseResult.providerTransactionId && (
-                <p>
-                  Provider Transaction ID:
-                  {" "}
-                  {
-                    purchaseResult.providerTransactionId
-                  }
-                </p>
-              )}
+                      <span
+                        style={{
+                          color:
+                            "#64748b",
+                          fontSize:
+                            "12px",
+                        }}
+                      >
+                        Your electricity payment
+                        was processed.
+                      </span>
+                    </div>
+                  </div>
 
-              {purchaseResult.token && (
-                <p>
-                  Electricity Token:
-                  {" "}
-                  <strong>
-                    {
-                      purchaseResult.token
-                    }
+                  <div
+                    style={{
+                      color: "#475569",
+                      fontSize: "14px",
+                      lineHeight: "1.9",
+                    }}
+                  >
+                    <div>
+                      <strong>
+                        Amount:
+                      </strong>{" "}
+                      ₦
+                      {Number(
+                        purchaseResult.amount ||
+                          sellingPrice
+                      ).toLocaleString()}
+                    </div>
+
+                    <div>
+                      <strong>
+                        Meter:
+                      </strong>{" "}
+                      {purchaseResult.meterNumber ||
+                        meterNumber}
+                    </div>
+
+                    <div>
+                      <strong>
+                        Type:
+                      </strong>{" "}
+                      {purchaseResult.meterType ||
+                        meterType}
+                    </div>
+
+                    {purchaseResult.providerReference && (
+                      <div>
+                        <strong>
+                          Provider Reference:
+                        </strong>{" "}
+                        {
+                          purchaseResult.providerReference
+                        }
+                      </div>
+                    )}
+
+                    {purchaseResult.providerTransactionId && (
+                      <div>
+                        <strong>
+                          Transaction ID:
+                        </strong>{" "}
+                        {
+                          purchaseResult.providerTransactionId
+                        }
+                      </div>
+                    )}
+                  </div>
+
+                  {(purchaseResult.token ||
+                    purchaseResult.electricitytoken) && (
+                    <div
+                      style={{
+                        marginTop: "18px",
+                        padding: "18px",
+                        borderRadius: "15px",
+                        background:
+                          "#ffffff",
+                        border:
+                          "1px solid #bbf7d0",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color:
+                            "#64748b",
+                          fontWeight:
+                            "700",
+                          textTransform:
+                            "uppercase",
+                          marginBottom:
+                            "6px",
+                        }}
+                      >
+                        Electricity Token
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: "20px",
+                          fontWeight:
+                            "800",
+                          color:
+                            "#166534",
+                          wordBreak:
+                            "break-word",
+                        }}
+                      >
+                        {purchaseResult.token ||
+                          purchaseResult.electricitytoken}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <strong
+                    style={{
+                      display: "block",
+                      color: "#9a3412",
+                      fontSize: "17px",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    Purchase Processing
                   </strong>
-                </p>
-              )}
 
-              {purchaseResult.electricitytoken && (
-                <p>
-                  Electricity Token:
-                  {" "}
-                  <strong>
-                    {
-                      purchaseResult.electricitytoken
-                    }
-                  </strong>
-                </p>
-              )}
-            </>
-          ) : (
-            <>
-              <h5>
-                Purchase Processing
-              </h5>
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "#64748b",
+                      fontSize: "14px",
+                      lineHeight: "1.6",
+                    }}
+                  >
+                    {purchaseResult.message ||
+                      "Your electricity purchase is being processed. Please do not purchase again yet."}
+                  </p>
 
-              <p>
-                {purchaseResult.message ||
-                  "Your electricity purchase is being processed. Please do not purchase again yet."}
-              </p>
-
-              {purchaseResult.orderId && (
-                <p>
-                  Order ID:
-                  {" "}
-                  {
-                    purchaseResult.orderId
-                  }
-                </p>
+                  {purchaseResult.orderId && (
+                    <div
+                      style={{
+                        marginTop: "10px",
+                        color: "#64748b",
+                        fontSize: "12px",
+                      }}
+                    >
+                      Order ID:{" "}
+                      {
+                        purchaseResult.orderId
+                      }
+                    </div>
+                  )}
+                </>
               )}
-            </>
+            </div>
           )}
         </div>
-      )}
 
-      {/* SANDBOX NOTICE */}
-      <div className="mt-4">
-        <small className="text-muted">
-          Electricity services are currently
-          running in sandbox mode.
-          {" "}
-          Sandbox meter:
-          {" "}
-          1111111111111
-        </small>
+        {/* TRUST CARDS */}
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(3, 1fr)",
+            gap: "15px",
+            marginTop: "20px",
+          }}
+        >
+          {[
+            {
+              icon: "⚡",
+              title: "Fast",
+              text: "Quick processing",
+            },
+            {
+              icon: "🔒",
+              title: "Secure",
+              text: "Protected payments",
+            },
+            {
+              icon: "✓",
+              title: "Reliable",
+              text: "Trusted service",
+            },
+          ].map((item) => (
+            <div
+              key={item.title}
+              style={{
+                background: "#ffffff",
+                borderRadius: "18px",
+                padding: "18px",
+                textAlign: "center",
+                boxShadow:
+                  "0 8px 25px rgba(15, 23, 42, 0.05)",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "23px",
+                  marginBottom: "7px",
+                }}
+              >
+                {item.icon}
+              </div>
+
+              <strong
+                style={{
+                  display: "block",
+                  color: "#0f172a",
+                  fontSize: "14px",
+                }}
+              >
+                {item.title}
+              </strong>
+
+              <span
+                style={{
+                  color: "#64748b",
+                  fontSize: "12px",
+                }}
+              >
+                {item.text}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* SANDBOX */}
+
+        <div
+          style={{
+            textAlign: "center",
+            marginTop: "18px",
+            color: "#94a3b8",
+            fontSize: "11px",
+          }}
+        >
+          Sandbox mode — testing environment.
+          Meter: 1111111111111
+        </div>
       </div>
     </div>
   );

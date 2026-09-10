@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import axios from "axios";
@@ -159,37 +160,13 @@ const TransactionHistory = () => {
 
   const filteredTransactions =
     transactions.filter((transaction) => {
-      const category = getCategory(transaction);
-
       if (filter === "all") {
         return true;
       }
 
-      if (filter === "wallet") {
-        return category === "wallet";
-      }
-
-      if (filter === "data") {
-        return category === "data";
-      }
-
-      if (filter === "airtime") {
-        return category === "airtime";
-      }
-
-      if (filter === "electricity") {
-        return category === "electricity";
-      }
-
-      if (filter === "cabletv") {
-        return category === "cabletv";
-      }
-
-      if (filter === "refund") {
-        return category === "refund";
-      }
-
-      return true;
+      return (
+        getCategory(transaction) === filter
+      );
     });
 
   const formatAmount = (amount) => {
@@ -225,20 +202,20 @@ const TransactionHistory = () => {
     ) {
       case "successful":
       case "success":
-        return "bg-success";
+        return "status-success";
 
       case "refunded":
-        return "bg-info text-dark";
+        return "status-refunded";
 
       case "failed":
-        return "bg-danger";
+        return "status-failed";
 
       case "processing":
       case "pending":
-        return "bg-warning text-dark";
+        return "status-pending";
 
       default:
-        return "bg-secondary";
+        return "status-unknown";
     }
   };
 
@@ -286,6 +263,98 @@ const TransactionHistory = () => {
 
     return fallback;
   };
+
+  const getServiceIcon = (service) => {
+    switch (service) {
+      case "Wallet":
+        return "₦";
+
+      case "Data":
+        return "▦";
+
+      case "Airtime":
+        return "☎";
+
+      case "Electricity":
+        return "⚡";
+
+      case "Cable TV":
+        return "▣";
+
+      case "Refund":
+        return "↩";
+
+      default:
+        return "₦";
+    }
+  };
+
+  const getServiceAccent = (service) => {
+    switch (service) {
+      case "Wallet":
+        return "service-wallet";
+
+      case "Data":
+        return "service-data";
+
+      case "Airtime":
+        return "service-airtime";
+
+      case "Electricity":
+        return "service-electricity";
+
+      case "Cable TV":
+        return "service-cable";
+
+      case "Refund":
+        return "service-refund";
+
+      default:
+        return "service-default";
+    }
+  };
+
+  const stats = useMemo(() => {
+    const successful =
+      transactions.filter((transaction) => {
+        const status = String(
+          transaction.status || ""
+        ).toLowerCase();
+
+        return (
+          status === "success" ||
+          status === "successful"
+        );
+      }).length;
+
+    const pending =
+      transactions.filter((transaction) => {
+        const status = String(
+          transaction.status || ""
+        ).toLowerCase();
+
+        return (
+          status === "pending" ||
+          status === "processing"
+        );
+      }).length;
+
+    const failed =
+      transactions.filter((transaction) => {
+        const status = String(
+          transaction.status || ""
+        ).toLowerCase();
+
+        return status === "failed";
+      }).length;
+
+    return {
+      total: transactions.length,
+      successful,
+      pending,
+      failed,
+    };
+  }, [transactions]);
 
   const openReceipt = (transaction) => {
     const receiptWindow = window.open(
@@ -413,11 +482,19 @@ const TransactionHistory = () => {
       ]
     );
 
+    const safe = (value) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
     receiptWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Transaction Receipt</title>
+        <title>INSTANT LOAD Transaction Receipt</title>
 
         <meta
           name="viewport"
@@ -432,112 +509,139 @@ const TransactionHistory = () => {
           body {
             margin: 0;
             padding: 30px;
-            background: #f2f2f2;
-            font-family: Arial, Helvetica, sans-serif;
-            color: #222;
+            background: #eef3f8;
+            font-family:
+              Arial,
+              Helvetica,
+              sans-serif;
+            color: #142033;
           }
 
           .receipt {
             width: 100%;
-            max-width: 700px;
+            max-width: 720px;
             margin: 0 auto;
             background: #ffffff;
-            padding: 40px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            padding: 42px;
+            border-radius: 18px;
+            box-shadow:
+              0 10px 35px
+              rgba(15, 31, 52, 0.10);
           }
 
           .header {
             text-align: center;
-            border-bottom: 2px solid #222;
-            padding-bottom: 20px;
-            margin-bottom: 25px;
+            padding-bottom: 24px;
+            margin-bottom: 26px;
+            border-bottom: 2px solid #e9eef4;
           }
 
           .business-name {
-            font-size: 26px;
-            font-weight: bold;
+            color: #0b1f3a;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 1px;
             margin-bottom: 8px;
           }
 
+          .business-name span {
+            color: #19b36b;
+          }
+
           .receipt-title {
-            font-size: 18px;
-            font-weight: bold;
+            color: #657286;
+            font-size: 14px;
+            font-weight: 700;
             text-transform: uppercase;
+            letter-spacing: 1.5px;
           }
 
           .row {
             display: flex;
             justify-content: space-between;
             gap: 20px;
-            padding: 10px 0;
-            border-bottom: 1px solid #eeeeee;
+            padding: 12px 0;
+            border-bottom: 1px solid #edf1f5;
           }
 
           .label {
-            color: #666;
+            color: #718096;
+            font-size: 14px;
           }
 
           .value {
-            font-weight: 600;
+            color: #172235;
+            font-weight: 700;
             text-align: right;
             word-break: break-word;
           }
 
           .amount {
-            margin: 25px 0;
-            padding: 20px;
-            background: #f7f7f7;
+            margin: 28px 0;
+            padding: 24px;
+            background: #f3faf7;
+            border: 1px solid #d9f1e5;
+            border-radius: 14px;
             text-align: center;
           }
 
           .amount-label {
-            font-size: 14px;
-            color: #666;
+            font-size: 13px;
+            color: #66758a;
+            text-transform: uppercase;
+            letter-spacing: 1px;
           }
 
           .amount-value {
-            font-size: 32px;
-            font-weight: bold;
-            margin-top: 5px;
+            color: #0b1f3a;
+            font-size: 34px;
+            font-weight: 800;
+            margin-top: 7px;
           }
 
           .status {
             display: inline-block;
-            padding: 6px 12px;
-            border-radius: 20px;
-            background: #198754;
-            color: white;
+            padding: 7px 13px;
+            border-radius: 30px;
+            background: #e7f8ef;
+            color: #087a43;
             font-size: 13px;
+            font-weight: 700;
           }
 
           .footer {
             text-align: center;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #ddd;
-            color: #666;
+            margin-top: 32px;
+            padding-top: 22px;
+            border-top: 1px solid #e2e8ef;
+            color: #718096;
             font-size: 13px;
+            line-height: 1.6;
           }
 
           .print-button {
             display: block;
             margin: 25px auto 0;
-            padding: 12px 25px;
+            padding: 13px 26px;
             border: none;
-            border-radius: 6px;
-            background: #0d6efd;
+            border-radius: 10px;
+            background: #0b1f3a;
             color: white;
-            font-size: 16px;
+            font-size: 15px;
+            font-weight: 700;
             cursor: pointer;
           }
 
           .token {
-            padding: 15px;
-            margin-top: 15px;
-            border: 2px dashed #198754;
+            padding: 18px;
+            margin-top: 18px;
+            border: 2px dashed #19b36b;
+            border-radius: 12px;
+            background: #f4fbf7;
+            color: #087a43;
             text-align: center;
             font-size: 22px;
-            font-weight: bold;
+            font-weight: 800;
             word-break: break-all;
           }
 
@@ -550,6 +654,7 @@ const TransactionHistory = () => {
             .receipt {
               max-width: none;
               box-shadow: none;
+              border-radius: 0;
               padding: 20px;
             }
 
@@ -564,12 +669,13 @@ const TransactionHistory = () => {
             }
 
             .receipt {
-              padding: 20px;
+              padding: 22px;
+              border-radius: 12px;
             }
 
             .row {
               flex-direction: column;
-              gap: 4px;
+              gap: 5px;
             }
 
             .value {
@@ -584,7 +690,7 @@ const TransactionHistory = () => {
 
           <div class="header">
             <div class="business-name">
-              VTU BUSINESS
+              INSTANT <span>LOAD</span>
             </div>
 
             <div class="receipt-title">
@@ -598,7 +704,7 @@ const TransactionHistory = () => {
             </div>
 
             <div class="value">
-              ${receiptNumber}
+              ${safe(receiptNumber)}
             </div>
           </div>
 
@@ -608,7 +714,11 @@ const TransactionHistory = () => {
             </div>
 
             <div class="value">
-              ${formatDate(transaction.createdAt)}
+              ${safe(
+                formatDate(
+                  transaction.createdAt
+                )
+              )}
             </div>
           </div>
 
@@ -618,7 +728,7 @@ const TransactionHistory = () => {
             </div>
 
             <div class="value">
-              ${customerEmail}
+              ${safe(customerEmail)}
             </div>
           </div>
 
@@ -628,7 +738,7 @@ const TransactionHistory = () => {
             </div>
 
             <div class="value">
-              ${service}
+              ${safe(service)}
             </div>
           </div>
 
@@ -641,7 +751,7 @@ const TransactionHistory = () => {
                   </div>
 
                   <div class="value">
-                    ${network}
+                    ${safe(network)}
                   </div>
                 </div>
               `
@@ -657,7 +767,7 @@ const TransactionHistory = () => {
                   </div>
 
                   <div class="value">
-                    ${phone}
+                    ${safe(phone)}
                   </div>
                 </div>
               `
@@ -674,7 +784,7 @@ const TransactionHistory = () => {
                   </div>
 
                   <div class="value">
-                    ${cableProvider}
+                    ${safe(cableProvider)}
                   </div>
                 </div>
               `
@@ -691,7 +801,7 @@ const TransactionHistory = () => {
                   </div>
 
                   <div class="value">
-                    ${smartCardNumber}
+                    ${safe(smartCardNumber)}
                   </div>
                 </div>
               `
@@ -707,7 +817,7 @@ const TransactionHistory = () => {
                   </div>
 
                   <div class="value">
-                    ${plan}
+                    ${safe(plan)}
                   </div>
                 </div>
               `
@@ -724,7 +834,7 @@ const TransactionHistory = () => {
                   </div>
 
                   <div class="value">
-                    ${duration} days
+                    ${safe(duration)} days
                   </div>
                 </div>
               `
@@ -741,7 +851,9 @@ const TransactionHistory = () => {
                   </div>
 
                   <div class="value">
-                    ${transaction.discoName}
+                    ${safe(
+                      transaction.discoName
+                    )}
                   </div>
                 </div>
               `
@@ -758,7 +870,9 @@ const TransactionHistory = () => {
                   </div>
 
                   <div class="value">
-                    ${transaction.meterNumber}
+                    ${safe(
+                      transaction.meterNumber
+                    )}
                   </div>
                 </div>
               `
@@ -774,7 +888,7 @@ const TransactionHistory = () => {
                   </div>
 
                   <div class="value">
-                    ${requestId}
+                    ${safe(requestId)}
                   </div>
                 </div>
               `
@@ -790,7 +904,9 @@ const TransactionHistory = () => {
                   </div>
 
                   <div class="value">
-                    ${providerReference}
+                    ${safe(
+                      providerReference
+                    )}
                   </div>
                 </div>
               `
@@ -803,7 +919,7 @@ const TransactionHistory = () => {
             </div>
 
             <div class="amount-value">
-              ${formatAmount(amount)}
+              ${safe(formatAmount(amount))}
             </div>
           </div>
 
@@ -816,12 +932,12 @@ const TransactionHistory = () => {
                   </div>
 
                   <div class="value">
-                    ${electricityToken}
+                    ${safe(electricityToken)}
                   </div>
                 </div>
 
                 <div class="token">
-                  ${electricityToken}
+                  ${safe(electricityToken)}
                 </div>
               `
               : ""
@@ -834,19 +950,21 @@ const TransactionHistory = () => {
 
             <div class="value">
               <span class="status">
-                ${status}
+                ${safe(status)}
               </span>
             </div>
           </div>
 
           <div class="footer">
             <div>
-              ${transaction.description || ""}
+              ${safe(
+                transaction.description || ""
+              )}
             </div>
 
             <br />
 
-            Thank you for using our service.
+            Thank you for using INSTANT LOAD.
           </div>
 
           <button
@@ -865,503 +983,1136 @@ const TransactionHistory = () => {
     receiptWindow.focus();
   };
 
+  const filterOptions = [
+    {
+      key: "all",
+      label: "All",
+    },
+    {
+      key: "wallet",
+      label: "Wallet",
+    },
+    {
+      key: "data",
+      label: "Data",
+    },
+    {
+      key: "airtime",
+      label: "Airtime",
+    },
+    {
+      key: "electricity",
+      label: "Electricity",
+    },
+    {
+      key: "cabletv",
+      label: "Cable TV",
+    },
+    {
+      key: "refund",
+      label: "Refunds",
+    },
+  ];
+
   return (
-    <div className="container mt-4 mb-5">
+    <>
+      <style>
+        {`
+          .history-page {
+            min-height: 100vh;
+            background: #f5f8fb;
+            padding: 28px 0 55px;
+          }
 
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h3 className="mb-1">
-            Transaction History
-          </h3>
+          .history-shell {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 0 20px;
+          }
 
-          <p className="text-muted mb-0">
-            View and print your data, airtime,
-            electricity, cable TV and wallet
-            transactions.
-          </p>
-        </div>
+          .history-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 25px;
+          }
 
-        <button
-          type="button"
-          className="btn btn-outline-primary"
-          onClick={loadTransactions}
-          disabled={loading}
-        >
-          {loading ? "Loading..." : "Refresh"}
-        </button>
-      </div>
+          .history-eyebrow {
+            color: #19a968;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 7px;
+          }
 
-      <div className="mb-4">
+          .history-title {
+            color: #0b1f3a;
+            font-size: 30px;
+            font-weight: 800;
+            margin: 0;
+          }
 
-        <div
-          className="btn-group w-100"
-          role="group"
-        >
+          .history-subtitle {
+            color: #6b7789;
+            font-size: 14px;
+            margin: 7px 0 0;
+            max-width: 600px;
+            line-height: 1.6;
+          }
 
-          <button
-            type="button"
-            className={`btn ${
-              filter === "all"
-                ? "btn-primary"
-                : "btn-outline-primary"
-            }`}
-            onClick={() => setFilter("all")}
-          >
-            All
-          </button>
+          .refresh-button {
+            border: 1px solid #dce4ed;
+            background: white;
+            color: #0b1f3a;
+            min-width: 105px;
+            padding: 11px 17px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s ease;
+            box-shadow:
+              0 3px 12px
+              rgba(11, 31, 58, 0.04);
+          }
 
-          <button
-            type="button"
-            className={`btn ${
-              filter === "wallet"
-                ? "btn-primary"
-                : "btn-outline-primary"
-            }`}
-            onClick={() => setFilter("wallet")}
-          >
-            Wallet
-          </button>
+          .refresh-button:hover:not(:disabled) {
+            border-color: #19a968;
+            color: #19a968;
+          }
 
-          <button
-            type="button"
-            className={`btn ${
-              filter === "data"
-                ? "btn-primary"
-                : "btn-outline-primary"
-            }`}
-            onClick={() => setFilter("data")}
-          >
-            Data
-          </button>
+          .refresh-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+          }
 
-          <button
-            type="button"
-            className={`btn ${
-              filter === "airtime"
-                ? "btn-primary"
-                : "btn-outline-primary"
-            }`}
-            onClick={() => setFilter("airtime")}
-          >
-            Airtime
-          </button>
+          .history-stats {
+            display: grid;
+            grid-template-columns:
+              repeat(4, minmax(0, 1fr));
+            gap: 14px;
+            margin-bottom: 24px;
+          }
 
-          <button
-            type="button"
-            className={`btn ${
-              filter === "electricity"
-                ? "btn-primary"
-                : "btn-outline-primary"
-            }`}
-            onClick={() =>
-              setFilter("electricity")
+          .history-stat {
+            background: white;
+            border: 1px solid #e7edf3;
+            border-radius: 15px;
+            padding: 17px;
+            box-shadow:
+              0 4px 18px
+              rgba(11, 31, 58, 0.035);
+          }
+
+          .history-stat-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+          }
+
+          .history-stat-label {
+            color: #718096;
+            font-size: 12px;
+            font-weight: 700;
+          }
+
+          .history-stat-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            font-weight: 800;
+            background: #f1f6fb;
+            color: #0b1f3a;
+          }
+
+          .history-stat-value {
+            color: #0b1f3a;
+            font-size: 24px;
+            font-weight: 800;
+            margin-top: 10px;
+          }
+
+          .history-stat-success
+            .history-stat-icon {
+            background: #e8f8f0;
+            color: #0b9b5b;
+          }
+
+          .history-stat-pending
+            .history-stat-icon {
+            background: #fff6df;
+            color: #a46b00;
+          }
+
+          .history-stat-failed
+            .history-stat-icon {
+            background: #fff0f0;
+            color: #d53b3b;
+          }
+
+          .filter-card {
+            background: white;
+            border: 1px solid #e7edf3;
+            border-radius: 15px;
+            padding: 7px;
+            margin-bottom: 22px;
+            box-shadow:
+              0 4px 18px
+              rgba(11, 31, 58, 0.035);
+          }
+
+          .filter-scroll {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            scrollbar-width: none;
+          }
+
+          .filter-scroll::-webkit-scrollbar {
+            display: none;
+          }
+
+          .filter-button {
+            flex: 0 0 auto;
+            border: none;
+            background: transparent;
+            color: #66758a;
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s ease;
+          }
+
+          .filter-button:hover {
+            background: #f2f6fa;
+            color: #0b1f3a;
+          }
+
+          .filter-button.active {
+            background: #0b1f3a;
+            color: white;
+          }
+
+          .transaction-list {
+            display: flex;
+            flex-direction: column;
+            gap: 13px;
+          }
+
+          .transaction-card {
+            background: white;
+            border: 1px solid #e5ebf1;
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow:
+              0 4px 18px
+              rgba(11, 31, 58, 0.035);
+            transition:
+              transform 0.2s ease,
+              box-shadow 0.2s ease;
+          }
+
+          .transaction-card:hover {
+            transform: translateY(-1px);
+            box-shadow:
+              0 8px 25px
+              rgba(11, 31, 58, 0.07);
+          }
+
+          .transaction-main {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+          }
+
+          .service-icon {
+            width: 48px;
+            height: 48px;
+            flex: 0 0 48px;
+            border-radius: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 19px;
+            font-weight: 800;
+          }
+
+          .service-wallet {
+            background: #eaf7f1;
+            color: #0a9a59;
+          }
+
+          .service-data {
+            background: #edf4ff;
+            color: #3676d5;
+          }
+
+          .service-airtime {
+            background: #fff1e8;
+            color: #dc6b28;
+          }
+
+          .service-electricity {
+            background: #fff8dc;
+            color: #a57900;
+          }
+
+          .service-cable {
+            background: #f3edff;
+            color: #7850c9;
+          }
+
+          .service-refund {
+            background: #e9f7f8;
+            color: #278b91;
+          }
+
+          .service-default {
+            background: #edf2f7;
+            color: #536276;
+          }
+
+          .transaction-content {
+            min-width: 0;
+            flex: 1;
+          }
+
+          .transaction-heading {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+          }
+
+          .transaction-title {
+            color: #172235;
+            font-size: 15px;
+            font-weight: 800;
+            margin: 0 0 4px;
+          }
+
+          .transaction-date {
+            color: #8995a5;
+            font-size: 12px;
+          }
+
+          .transaction-amount {
+            text-align: right;
+            white-space: nowrap;
+          }
+
+          .amount-positive {
+            color: #0b9b5b;
+          }
+
+          .amount-negative {
+            color: #d54646;
+          }
+
+          .amount-neutral {
+            color: #172235;
+          }
+
+          .amount-value {
+            font-size: 17px;
+            font-weight: 800;
+          }
+
+          .amount-label {
+            color: #9aa5b3;
+            font-size: 11px;
+            margin-top: 2px;
+          }
+
+          .transaction-divider {
+            border: none;
+            border-top: 1px solid #edf1f5;
+            margin: 14px 0;
+          }
+
+          .transaction-meta {
+            display: grid;
+            grid-template-columns:
+              repeat(3, minmax(0, 1fr));
+            gap: 15px;
+          }
+
+          .meta-label {
+            display: block;
+            color: #8995a5;
+            font-size: 11px;
+            margin-bottom: 4px;
+          }
+
+          .meta-value {
+            color: #364357;
+            font-size: 13px;
+            font-weight: 700;
+            word-break: break-word;
+          }
+
+          .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 30px;
+            font-size: 11px;
+            font-weight: 800;
+          }
+
+          .status-badge::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+          }
+
+          .status-success {
+            background: #e8f8f0;
+            color: #087a43;
+          }
+
+          .status-refunded {
+            background: #e7f6f7;
+            color: #237d82;
+          }
+
+          .status-failed {
+            background: #fff0f0;
+            color: #c73737;
+          }
+
+          .status-pending {
+            background: #fff5dc;
+            color: #9b6b00;
+          }
+
+          .status-unknown {
+            background: #edf1f5;
+            color: #647286;
+          }
+
+          .transaction-extra {
+            margin-top: 14px;
+            padding: 12px 14px;
+            background: #f8fafc;
+            border-radius: 10px;
+          }
+
+          .extra-line {
+            color: #66758a;
+            font-size: 12px;
+            line-height: 1.7;
+          }
+
+          .extra-line strong {
+            color: #364357;
+          }
+
+          .receipt-button {
+            margin-top: 14px;
+            border: 1px solid #dce5ed;
+            background: white;
+            color: #0b1f3a;
+            padding: 9px 13px;
+            border-radius: 9px;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.2s ease;
+          }
+
+          .receipt-button:hover {
+            border-color: #19a968;
+            color: #0a9a59;
+            background: #f4fbf7;
+          }
+
+          .empty-card {
+            background: white;
+            border: 1px solid #e5ebf1;
+            border-radius: 17px;
+            padding: 60px 20px;
+            text-align: center;
+            box-shadow:
+              0 4px 18px
+              rgba(11, 31, 58, 0.035);
+          }
+
+          .empty-icon {
+            width: 58px;
+            height: 58px;
+            margin: 0 auto 16px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #edf3f8;
+            color: #647286;
+            font-size: 22px;
+            font-weight: 800;
+          }
+
+          .empty-title {
+            color: #172235;
+            font-size: 17px;
+            font-weight: 800;
+            margin-bottom: 7px;
+          }
+
+          .empty-text {
+            color: #8793a3;
+            font-size: 13px;
+            margin: 0;
+          }
+
+          .loading-card {
+            background: white;
+            border: 1px solid #e5ebf1;
+            border-radius: 17px;
+            padding: 65px 20px;
+            text-align: center;
+          }
+
+          .loading-spinner {
+            width: 38px;
+            height: 38px;
+            border: 3px solid #e2e9f0;
+            border-top-color: #19a968;
+            border-radius: 50%;
+            animation:
+              instantLoadSpin 0.8s
+              linear infinite;
+            margin: 0 auto 14px;
+          }
+
+          .loading-text {
+            color: #6e7b8d;
+            font-size: 13px;
+            margin: 0;
+          }
+
+          @keyframes instantLoadSpin {
+            to {
+              transform: rotate(360deg);
             }
-          >
-            Electricity
-          </button>
+          }
 
-          <button
-            type="button"
-            className={`btn ${
-              filter === "cabletv"
-                ? "btn-primary"
-                : "btn-outline-primary"
-            }`}
-            onClick={() => setFilter("cabletv")}
-          >
-            Cable TV
-          </button>
+          @media (max-width: 900px) {
+            .history-stats {
+              grid-template-columns:
+                repeat(2, minmax(0, 1fr));
+            }
 
-          <button
-            type="button"
-            className={`btn ${
-              filter === "refund"
-                ? "btn-primary"
-                : "btn-outline-primary"
-            }`}
-            onClick={() => setFilter("refund")}
-          >
-            Refunds
-          </button>
+            .transaction-meta {
+              grid-template-columns:
+                repeat(2, minmax(0, 1fr));
+            }
+          }
 
-        </div>
-      </div>
+          @media (max-width: 650px) {
+            .history-page {
+              padding-top: 20px;
+            }
 
-      {loading ? (
-        <div className="text-center py-5">
+            .history-shell {
+              padding: 0 14px;
+            }
 
-          <div
-            className="spinner-border"
-            role="status"
-          />
+            .history-header {
+              flex-direction: column;
+            }
 
-          <p className="mt-3">
-            Loading transactions...
-          </p>
+            .history-title {
+              font-size: 25px;
+            }
 
-        </div>
-      ) : filteredTransactions.length === 0 ? (
-        <div className="card shadow-sm">
+            .refresh-button {
+              width: 100%;
+            }
 
-          <div className="card-body text-center py-5">
+            .history-stats {
+              grid-template-columns:
+                repeat(2, minmax(0, 1fr));
+              gap: 9px;
+            }
 
-            <h5>
-              No transactions found
-            </h5>
+            .history-stat {
+              padding: 14px;
+            }
 
-            <p className="text-muted mb-0">
-              Your transactions will appear here.
-            </p>
+            .history-stat-value {
+              font-size: 21px;
+            }
+
+            .transaction-card {
+              padding: 14px;
+            }
+
+            .transaction-main {
+              gap: 11px;
+            }
+
+            .service-icon {
+              width: 43px;
+              height: 43px;
+              flex-basis: 43px;
+              border-radius: 11px;
+              font-size: 17px;
+            }
+
+            .transaction-heading {
+              gap: 8px;
+            }
+
+            .transaction-title {
+              font-size: 14px;
+            }
+
+            .transaction-amount {
+              min-width: 90px;
+            }
+
+            .amount-value {
+              font-size: 15px;
+            }
+
+            .transaction-meta {
+              grid-template-columns: 1fr;
+              gap: 10px;
+            }
+          }
+        `}
+      </style>
+
+      <div className="history-page">
+        <div className="history-shell">
+
+          <div className="history-header">
+            <div>
+              <div className="history-eyebrow">
+                INSTANT LOAD
+              </div>
+
+              <h1 className="history-title">
+                Transaction History
+              </h1>
+
+              <p className="history-subtitle">
+                Track your wallet funding,
+                airtime, data, electricity and
+                cable TV transactions in one
+                place.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="refresh-button"
+              onClick={loadTransactions}
+              disabled={loading}
+            >
+              {loading
+                ? "Loading..."
+                : "↻ Refresh"}
+            </button>
+          </div>
+
+          <div className="history-stats">
+
+            <div className="history-stat">
+              <div className="history-stat-top">
+                <span className="history-stat-label">
+                  Total
+                </span>
+
+                <div className="history-stat-icon">
+                  ≡
+                </div>
+              </div>
+
+              <div className="history-stat-value">
+                {stats.total}
+              </div>
+            </div>
+
+            <div className="history-stat history-stat-success">
+              <div className="history-stat-top">
+                <span className="history-stat-label">
+                  Successful
+                </span>
+
+                <div className="history-stat-icon">
+                  ✓
+                </div>
+              </div>
+
+              <div className="history-stat-value">
+                {stats.successful}
+              </div>
+            </div>
+
+            <div className="history-stat history-stat-pending">
+              <div className="history-stat-top">
+                <span className="history-stat-label">
+                  Pending
+                </span>
+
+                <div className="history-stat-icon">
+                  …
+                </div>
+              </div>
+
+              <div className="history-stat-value">
+                {stats.pending}
+              </div>
+            </div>
+
+            <div className="history-stat history-stat-failed">
+              <div className="history-stat-top">
+                <span className="history-stat-label">
+                  Failed
+                </span>
+
+                <div className="history-stat-icon">
+                  !
+                </div>
+              </div>
+
+              <div className="history-stat-value">
+                {stats.failed}
+              </div>
+            </div>
 
           </div>
 
-        </div>
-      ) : (
-        <div className="row">
+          <div className="filter-card">
+            <div className="filter-scroll">
 
-          {filteredTransactions.map(
-            (transaction) => {
+              {filterOptions.map(
+                (option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    className={`filter-button ${
+                      filter === option.key
+                        ? "active"
+                        : ""
+                    }`}
+                    onClick={() =>
+                      setFilter(option.key)
+                    }
+                  >
+                    {option.label}
+                  </button>
+                )
+              )}
 
-              const service =
-                getServiceName(transaction);
+            </div>
+          </div>
 
-              const cableProvider =
-                getField(transaction, [
-                  "cableName",
-                  "cable_name",
-                  "cableProvider",
-                  "cable_provider",
-                  "cableTvProvider",
-                  "cable_tv_provider",
-                  "provider",
-                  "providerName",
-                  "the_cabletv_name",
-                ]);
+          {loading ? (
+            <div className="loading-card">
 
-              const smartCardNumber =
-                getField(transaction, [
-                  "smartCardNumber",
-                  "smart_card_number",
-                  "smartcardNumber",
-                  "smartcard_number",
-                  "iucNumber",
-                  "iuc_number",
-                  "smartCard",
-                  "smart_card",
-                  "iuc",
-                ]);
+              <div className="loading-spinner" />
 
-              const cablePlan =
-                getField(transaction, [
-                  "plan",
-                  "planName",
-                  "plan_name",
-                  "package",
-                  "packageName",
-                  "package_name",
-                  "cablePlan",
-                  "cable_plan",
-                  "cableplan",
-                  "size",
-                ]);
+              <p className="loading-text">
+                Loading your transactions...
+              </p>
 
-              const duration =
-                getField(transaction, [
-                  "duration",
-                  "durationDays",
-                  "duration_days",
-                ]);
+            </div>
+          ) : filteredTransactions.length ===
+            0 ? (
+            <div className="empty-card">
 
-              return (
-                <div
-                  className="col-12 mb-3"
-                  key={transaction.id}
-                >
+              <div className="empty-icon">
+                ≡
+              </div>
 
-                  <div className="card shadow-sm">
+              <div className="empty-title">
+                No transactions found
+              </div>
 
-                    <div className="card-body">
+              <p className="empty-text">
+                Your transactions will appear
+                here once you start using
+                INSTANT LOAD.
+              </p>
 
-                      <div className="d-flex justify-content-between align-items-start gap-3">
+            </div>
+          ) : (
+            <div className="transaction-list">
 
-                        <div>
+              {filteredTransactions.map(
+                (transaction) => {
 
-                          <h5 className="mb-1">
-                            {transaction.title ||
-                              service}
-                          </h5>
+                  const service =
+                    getServiceName(
+                      transaction
+                    );
 
-                          <small className="text-muted">
-                            {formatDate(
-                              transaction.createdAt
-                            )}
-                          </small>
+                  const amountSigned =
+                    Number(
+                      transaction.amountSigned ??
+                        transaction.amount ??
+                        0
+                    );
 
-                        </div>
+                  const isPositive =
+                    amountSigned > 0;
 
-                        <span
-                          className={`badge ${getStatusClass(
-                            transaction.status
+                  const isNegative =
+                    amountSigned < 0;
+
+                  const cableProvider =
+                    getField(
+                      transaction,
+                      [
+                        "cableName",
+                        "cable_name",
+                        "cableProvider",
+                        "cable_provider",
+                        "cableTvProvider",
+                        "cable_tv_provider",
+                        "provider",
+                        "providerName",
+                        "the_cabletv_name",
+                      ]
+                    );
+
+                  const smartCardNumber =
+                    getField(
+                      transaction,
+                      [
+                        "smartCardNumber",
+                        "smart_card_number",
+                        "smartcardNumber",
+                        "smartcard_number",
+                        "iucNumber",
+                        "iuc_number",
+                        "smartCard",
+                        "smart_card",
+                        "iuc",
+                      ]
+                    );
+
+                  const cablePlan =
+                    getField(
+                      transaction,
+                      [
+                        "plan",
+                        "planName",
+                        "plan_name",
+                        "package",
+                        "packageName",
+                        "package_name",
+                        "cablePlan",
+                        "cable_plan",
+                        "cableplan",
+                        "size",
+                      ]
+                    );
+
+                  const duration =
+                    getField(
+                      transaction,
+                      [
+                        "duration",
+                        "durationDays",
+                        "duration_days",
+                      ]
+                    );
+
+                  const amountClass =
+                    isPositive
+                      ? "amount-positive"
+                      : isNegative
+                      ? "amount-negative"
+                      : "amount-neutral";
+
+                  return (
+                    <div
+                      className="transaction-card"
+                      key={
+                        transaction.id ||
+                        transaction.reference
+                      }
+                    >
+
+                      <div className="transaction-main">
+
+                        <div
+                          className={`service-icon ${getServiceAccent(
+                            service
                           )}`}
                         >
-                          {getStatusText(
-                            transaction.status
+                          {getServiceIcon(
+                            service
                           )}
-                        </span>
-
-                      </div>
-
-                      <hr />
-
-                      <div className="row">
-
-                        <div className="col-md-4 mb-2">
-
-                          <small className="text-muted d-block">
-                            Amount
-                          </small>
-
-                          <strong
-                            className={
-                              Number(
-                                transaction.amountSigned ||
-                                  0
-                              ) >= 0
-                                ? "text-success"
-                                : "text-danger"
-                            }
-                          >
-                            {Number(
-                              transaction.amountSigned ||
-                                0
-                            ) >= 0
-                              ? "+"
-                              : "-"}
-
-                            {formatAmount(
-                              transaction.amountSigned
-                            )}
-                          </strong>
-
                         </div>
 
-                        <div className="col-md-4 mb-2">
+                        <div className="transaction-content">
 
-                          <small className="text-muted d-block">
-                            Reference
-                          </small>
+                          <div className="transaction-heading">
 
-                          <span className="text-break">
-                            {transaction.reference ||
-                              transaction.id}
-                          </span>
+                            <div>
+                              <h3 className="transaction-title">
+                                {transaction.title ||
+                                  service}
+                              </h3>
 
-                        </div>
+                              <div className="transaction-date">
+                                {formatDate(
+                                  transaction.createdAt
+                                )}
+                              </div>
+                            </div>
 
-                        <div className="col-md-4 mb-2">
+                            <div className="transaction-amount">
 
-                          <small className="text-muted d-block">
-                            Service
-                          </small>
+                              <div
+                                className={`amount-value ${amountClass}`}
+                              >
+                                {isPositive
+                                  ? "+"
+                                  : isNegative
+                                  ? "-"
+                                  : ""}
 
-                          <span>
-                            {service}
-                          </span>
+                                {formatAmount(
+                                  amountSigned
+                                )}
+                              </div>
 
-                        </div>
-
-                      </div>
-
-                      {transaction.network && (
-                        <div className="mt-2">
-
-                          <small className="text-muted">
-                            Network:
-                          </small>{" "}
-
-                          <strong>
-                            {transaction.network}
-                          </strong>
-
-                          {transaction.mobileNumber && (
-                            <>
-                              {" • "}
-
-                              <small className="text-muted">
-                                Number:
-                              </small>{" "}
-
-                              <strong>
-                                {
-                                  transaction.mobileNumber
-                                }
-                              </strong>
-                            </>
-                          )}
-
-                        </div>
-                      )}
-
-                      {service === "Cable TV" && (
-                        <div className="mt-3">
-
-                          {cableProvider && (
-                            <div className="mb-1">
-
-                              <small className="text-muted">
-                                Provider:
-                              </small>{" "}
-
-                              <strong>
-                                {cableProvider}
-                              </strong>
+                              <div className="amount-label">
+                                Amount
+                              </div>
 
                             </div>
-                          )}
-
-                          {smartCardNumber && (
-                            <div className="mb-1">
-
-                              <small className="text-muted">
-                                Smart Card / IUC:
-                              </small>{" "}
-
-                              <strong>
-                                {smartCardNumber}
-                              </strong>
-
-                            </div>
-                          )}
-
-                          {cablePlan && (
-                            <div className="mb-1">
-
-                              <small className="text-muted">
-                                Package:
-                              </small>{" "}
-
-                              <strong>
-                                {cablePlan}
-                              </strong>
-
-                            </div>
-                          )}
-
-                          {duration && (
-                            <div className="mb-1">
-
-                              <small className="text-muted">
-                                Duration:
-                              </small>{" "}
-
-                              <strong>
-                                {duration} days
-                              </strong>
-
-                            </div>
-                          )}
-
-                        </div>
-                      )}
-
-                      {service === "Electricity" && (
-                        <div className="mt-3">
-
-                          {transaction.discoName && (
-                            <div className="mb-1">
-
-                              <small className="text-muted">
-                                Disco:
-                              </small>{" "}
-
-                              <strong>
-                                {
-                                  transaction.discoName
-                                }
-                              </strong>
-
-                            </div>
-                          )}
-
-                          {transaction.meterNumber && (
-                            <div className="mb-1">
-
-                              <small className="text-muted">
-                                Meter Number:
-                              </small>{" "}
-
-                              <strong>
-                                {
-                                  transaction.meterNumber
-                                }
-                              </strong>
-
-                            </div>
-                          )}
-
-                          {transaction.token && (
-                            <div className="mb-1">
-
-                              <small className="text-muted">
-                                Token:
-                              </small>{" "}
-
-                              <strong className="text-break">
-                                {
-                                  transaction.token
-                                }
-                              </strong>
-
-                            </div>
-                          )}
-
-                        </div>
-                      )}
-
-                      {transaction.plan &&
-                        service !== "Cable TV" && (
-                          <div className="mt-2">
-
-                            <small className="text-muted">
-                              Plan:
-                            </small>{" "}
-
-                            <strong>
-                              {transaction.plan}
-                            </strong>
 
                           </div>
-                        )}
 
-                      <div className="mt-3">
+                          <hr className="transaction-divider" />
 
-                        <button
-                          type="button"
-                          className="btn btn-outline-primary"
-                          onClick={() =>
-                            openReceipt(
-                              transaction
-                            )
-                          }
-                        >
-                          View / Print Receipt
-                        </button>
+                          <div className="transaction-meta">
+
+                            <div>
+                              <span className="meta-label">
+                                Service
+                              </span>
+
+                              <span className="meta-value">
+                                {service}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="meta-label">
+                                Reference
+                              </span>
+
+                              <span className="meta-value">
+                                {transaction.reference ||
+                                  transaction.id ||
+                                  "N/A"}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="meta-label">
+                                Status
+                              </span>
+
+                              <span
+                                className={`status-badge ${getStatusClass(
+                                  transaction.status
+                                )}`}
+                              >
+                                {getStatusText(
+                                  transaction.status
+                                )}
+                              </span>
+                            </div>
+
+                          </div>
+
+                          {transaction.network && (
+                            <div className="transaction-extra">
+
+                              <div className="extra-line">
+                                <strong>
+                                  Network:
+                                </strong>{" "}
+                                {
+                                  transaction.network
+                                }
+
+                                {transaction.mobileNumber && (
+                                  <>
+                                    {" • "}
+
+                                    <strong>
+                                      Number:
+                                    </strong>{" "}
+                                    {
+                                      transaction.mobileNumber
+                                    }
+                                  </>
+                                )}
+                              </div>
+
+                            </div>
+                          )}
+
+                          {service ===
+                            "Cable TV" && (
+                            <div className="transaction-extra">
+
+                              {cableProvider && (
+                                <div className="extra-line">
+                                  <strong>
+                                    Provider:
+                                  </strong>{" "}
+                                  {
+                                    cableProvider
+                                  }
+                                </div>
+                              )}
+
+                              {smartCardNumber && (
+                                <div className="extra-line">
+                                  <strong>
+                                    Smart Card / IUC:
+                                  </strong>{" "}
+                                  {
+                                    smartCardNumber
+                                  }
+                                </div>
+                              )}
+
+                              {cablePlan && (
+                                <div className="extra-line">
+                                  <strong>
+                                    Package:
+                                  </strong>{" "}
+                                  {cablePlan}
+                                </div>
+                              )}
+
+                              {duration && (
+                                <div className="extra-line">
+                                  <strong>
+                                    Duration:
+                                  </strong>{" "}
+                                  {duration} days
+                                </div>
+                              )}
+
+                            </div>
+                          )}
+
+                          {service ===
+                            "Electricity" && (
+                            <div className="transaction-extra">
+
+                              {transaction.discoName && (
+                                <div className="extra-line">
+                                  <strong>
+                                    Disco:
+                                  </strong>{" "}
+                                  {
+                                    transaction.discoName
+                                  }
+                                </div>
+                              )}
+
+                              {transaction.meterNumber && (
+                                <div className="extra-line">
+                                  <strong>
+                                    Meter Number:
+                                  </strong>{" "}
+                                  {
+                                    transaction.meterNumber
+                                  }
+                                </div>
+                              )}
+
+                              {transaction.token && (
+                                <div className="extra-line">
+                                  <strong>
+                                    Token:
+                                  </strong>{" "}
+                                  <span
+                                    style={{
+                                      wordBreak:
+                                        "break-all",
+                                    }}
+                                  >
+                                    {
+                                      transaction.token
+                                    }
+                                  </span>
+                                </div>
+                              )}
+
+                            </div>
+                          )}
+
+                          {transaction.plan &&
+                            service !==
+                              "Cable TV" && (
+                              <div className="transaction-extra">
+
+                                <div className="extra-line">
+                                  <strong>
+                                    Plan:
+                                  </strong>{" "}
+                                  {
+                                    transaction.plan
+                                  }
+                                </div>
+
+                              </div>
+                            )}
+
+                          <button
+                            type="button"
+                            className="receipt-button"
+                            onClick={() =>
+                              openReceipt(
+                                transaction
+                              )
+                            }
+                          >
+                            View / Print Receipt
+                          </button>
+
+                        </div>
 
                       </div>
 
                     </div>
+                  );
+                }
+              )}
 
-                  </div>
-
-                </div>
-              );
-            }
+            </div>
           )}
 
         </div>
-      )}
-
-    </div>
+      </div>
+    </>
   );
 };
 

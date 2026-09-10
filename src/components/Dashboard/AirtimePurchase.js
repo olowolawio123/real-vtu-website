@@ -34,9 +34,6 @@ const AirtimePurchase = () => {
     process.env.REACT_APP_API_URL ||
     "http://localhost:5000";
 
-  /*
-   * Load wallet balance.
-   */
   useEffect(() => {
     const currentUser =
       auth.currentUser;
@@ -223,180 +220,602 @@ const AirtimePurchase = () => {
     walletBalance -
     airtimeAmount;
 
+  const networks = [
+    {
+      name: "MTN",
+      icon: "bi-phone-fill",
+    },
+    {
+      name: "AIRTEL",
+      icon: "bi-phone-fill",
+    },
+    {
+      name: "GLO",
+      icon: "bi-phone-fill",
+    },
+    {
+      name: "9MOBILE",
+      icon: "bi-phone-fill",
+    },
+  ];
+
   return (
-    <div className="container mt-4">
-      <div className="card shadow-sm p-4">
-        <div className="d-flex justify-content-between align-items-center mb-4">
-          <h3 className="mb-0">
-            Buy Airtime
-          </h3>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#F4F7FB",
+        padding: "30px 20px 50px",
+        fontFamily:
+          "'Inter', 'Segoe UI', Arial, sans-serif",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "850px",
+          margin: "0 auto",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "15px",
+            marginBottom: "25px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                color: "#0A6CFF",
+                fontSize: "12px",
+                fontWeight: "800",
+                letterSpacing: "1px",
+                marginBottom: "6px",
+              }}
+            >
+              INSTANT LOAD
+            </div>
 
-          <span className="badge bg-success">
-            Wallet: ₦
-            {walletBalance.toLocaleString()}
-          </span>
-        </div>
+            <h1
+              style={{
+                margin: 0,
+                color: "#071A3D",
+                fontSize: "28px",
+                fontWeight: "800",
+              }}
+            >
+              Buy Airtime
+            </h1>
 
-        <div className="mb-3">
-          <label className="form-label">
-            Select Network
-          </label>
+            <p
+              style={{
+                margin: "7px 0 0",
+                color: "#718096",
+                fontSize: "13px",
+              }}
+            >
+              Recharge any Nigerian network instantly.
+            </p>
+          </div>
 
-          <select
-            className="form-select"
-            value={network}
-            onChange={(e) =>
-              setNetwork(
-                e.target.value
-              )
-            }
-            disabled={loading}
-          >
-            <option value="MTN">
-              MTN
-            </option>
-
-            <option value="AIRTEL">
-              Airtel
-            </option>
-
-            <option value="GLO">
-              Glo
-            </option>
-
-            <option value="9MOBILE">
-              9mobile
-            </option>
-          </select>
-        </div>
-
-        <div className="mb-3">
-          <label className="form-label">
-            Phone Number
-          </label>
-
-          <input
-            type="tel"
-            className="form-control"
-            placeholder="08011111111"
-            value={phone}
-            onChange={(e) =>
-              setPhone(
-                e.target.value.replace(
-                  /\D/g,
-                  ""
-                )
-              )
-            }
-            maxLength="11"
-            disabled={loading}
-          />
-
-          <small className="text-muted">
-            Sandbox testing uses
-            08011111111.
-          </small>
-        </div>
-
-        <div className="mb-3">
-          <label className="form-label">
-            Airtime Amount
-          </label>
-
-          <input
-            type="number"
-            className="form-control"
-            placeholder="Enter amount"
-            value={amount}
-            onChange={(e) =>
-              setAmount(
-                e.target.value
-              )
-            }
-            min="1"
-            step="1"
-            disabled={loading}
-          />
-        </div>
-
-        {amount && (
+          {/* Wallet */}
           <div
-            className={`alert ${
-              remainingBalance >= 0
-                ? "alert-info"
-                : "alert-danger"
-            }`}
+            style={{
+              background: "#ffffff",
+              border: "1px solid #E5EBF3",
+              borderRadius: "14px",
+              padding: "12px 17px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              boxShadow:
+                "0 6px 18px rgba(20, 50, 90, 0.06)",
+            }}
           >
+            <div
+              style={{
+                width: "38px",
+                height: "38px",
+                borderRadius: "11px",
+                background: "#EAF2FF",
+                color: "#0A6CFF",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <i className="bi bi-wallet2"></i>
+            </div>
+
             <div>
-              <strong>
-                {network}
+              <div
+                style={{
+                  color: "#718096",
+                  fontSize: "11px",
+                }}
+              >
+                Wallet Balance
+              </div>
+
+              <strong
+                style={{
+                  color: "#071A3D",
+                  fontSize: "17px",
+                }}
+              >
+                ₦{walletBalance.toLocaleString()}
               </strong>
             </div>
+          </div>
+        </div>
 
-            <div>
-              Airtime:
-              {" "}
-              ₦
-              {airtimeAmount.toLocaleString()}
+        {/* Main Card */}
+        <div
+          style={{
+            background: "#ffffff",
+            borderRadius: "22px",
+            padding: "30px",
+            border: "1px solid #E5EBF3",
+            boxShadow:
+              "0 12px 35px rgba(20, 50, 90, 0.07)",
+          }}
+        >
+          {/* Network */}
+          <div style={{ marginBottom: "25px" }}>
+            <label
+              style={{
+                display: "block",
+                color: "#344563",
+                fontSize: "13px",
+                fontWeight: "700",
+                marginBottom: "12px",
+              }}
+            >
+              Select Network
+            </label>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(4, 1fr)",
+                gap: "10px",
+              }}
+            >
+              {networks.map(
+                (item) => {
+                  const selected =
+                    network ===
+                    item.name;
+
+                  return (
+                    <button
+                      key={item.name}
+                      type="button"
+                      onClick={() =>
+                        setNetwork(
+                          item.name
+                        )
+                      }
+                      disabled={loading}
+                      style={{
+                        border: selected
+                          ? "2px solid #0A6CFF"
+                          : "1px solid #DDE5EF",
+                        background:
+                          selected
+                            ? "#EAF2FF"
+                            : "#ffffff",
+                        color: selected
+                          ? "#0A6CFF"
+                          : "#526581",
+                        borderRadius: "13px",
+                        padding: "15px 8px",
+                        cursor: loading
+                          ? "not-allowed"
+                          : "pointer",
+                        fontWeight: "700",
+                        fontSize: "12px",
+                      }}
+                    >
+                      <i
+                        className={`bi ${item.icon}`}
+                        style={{
+                          display:
+                            "block",
+                          fontSize:
+                            "20px",
+                          marginBottom:
+                            "7px",
+                        }}
+                      ></i>
+
+                      {item.name}
+                    </button>
+                  );
+                }
+              )}
+            </div>
+          </div>
+
+          {/* Phone */}
+          <div style={{ marginBottom: "22px" }}>
+            <label
+              style={{
+                display: "block",
+                color: "#344563",
+                fontSize: "13px",
+                fontWeight: "700",
+                marginBottom: "8px",
+              }}
+            >
+              Phone Number
+            </label>
+
+            <div
+              style={{
+                position: "relative",
+              }}
+            >
+              <i
+                className="bi bi-telephone"
+                style={{
+                  position: "absolute",
+                  left: "15px",
+                  top: "15px",
+                  color: "#8A99AD",
+                }}
+              ></i>
+
+              <input
+                type="tel"
+                placeholder="08011111111"
+                value={phone}
+                onChange={(e) =>
+                  setPhone(
+                    e.target.value.replace(
+                      /\D/g,
+                      ""
+                    )
+                  )
+                }
+                maxLength="11"
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  boxSizing:
+                    "border-box",
+                  padding:
+                    "14px 15px 14px 43px",
+                  border:
+                    "1px solid #DDE5EF",
+                  borderRadius:
+                    "12px",
+                  fontSize: "14px",
+                  outline: "none",
+                  color: "#172B4D",
+                  background:
+                    "#ffffff",
+                }}
+              />
             </div>
 
-            <div>
-              Current wallet:
-              {" "}
-              ₦
-              {walletBalance.toLocaleString()}
+            <div
+              style={{
+                marginTop: "7px",
+                color: "#8A99AD",
+                fontSize: "11px",
+              }}
+            >
+              Sandbox testing uses
+              08011111111.
             </div>
+          </div>
 
-            <div>
-              Balance after purchase:
-              {" "}
-              ₦
-              {Math.max(
-                remainingBalance,
-                0
-              ).toLocaleString()}
+          {/* Amount */}
+          <div style={{ marginBottom: "22px" }}>
+            <label
+              style={{
+                display: "block",
+                color: "#344563",
+                fontSize: "13px",
+                fontWeight: "700",
+                marginBottom: "8px",
+              }}
+            >
+              Airtime Amount
+            </label>
+
+            <div
+              style={{
+                position: "relative",
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  left: "15px",
+                  top: "13px",
+                  color: "#718096",
+                  fontSize: "16px",
+                  fontWeight: "700",
+                }}
+              >
+                ₦
+              </span>
+
+              <input
+                type="number"
+                placeholder="Enter amount"
+                value={amount}
+                onChange={(e) =>
+                  setAmount(
+                    e.target.value
+                  )
+                }
+                min="1"
+                step="1"
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  boxSizing:
+                    "border-box",
+                  padding:
+                    "14px 15px 14px 40px",
+                  border:
+                    "1px solid #DDE5EF",
+                  borderRadius:
+                    "12px",
+                  fontSize: "14px",
+                  outline: "none",
+                  color: "#172B4D",
+                  background:
+                    "#ffffff",
+                }}
+              />
             </div>
+          </div>
 
-            {remainingBalance <
-              0 && (
-              <div className="mt-2">
-                <strong>
-                  Insufficient wallet
-                  balance.
+          {/* Purchase Summary */}
+          {amount && (
+            <div
+              style={{
+                background:
+                  remainingBalance >= 0
+                    ? "#F4F8FF"
+                    : "#FFF5F5",
+                border:
+                  remainingBalance >= 0
+                    ? "1px solid #D9E8FF"
+                    : "1px solid #FFD8D8",
+                borderRadius: "16px",
+                padding: "18px",
+                marginBottom: "22px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  alignItems: "center",
+                  marginBottom: "14px",
+                }}
+              >
+                <strong
+                  style={{
+                    color: "#071A3D",
+                    fontSize: "14px",
+                  }}
+                >
+                  Purchase Summary
+                </strong>
+
+                <span
+                  style={{
+                    background: "#EAF2FF",
+                    color: "#0A6CFF",
+                    padding:
+                      "5px 9px",
+                    borderRadius: "8px",
+                    fontSize: "10px",
+                    fontWeight: "800",
+                  }}
+                >
+                  {network}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  color: "#718096",
+                  fontSize: "12px",
+                  marginBottom: "9px",
+                }}
+              >
+                <span>
+                  Airtime
+                </span>
+
+                <strong
+                  style={{
+                    color: "#172B4D",
+                  }}
+                >
+                  ₦{airtimeAmount.toLocaleString()}
                 </strong>
               </div>
-            )}
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  color: "#718096",
+                  fontSize: "12px",
+                  marginBottom: "9px",
+                }}
+              >
+                <span>
+                  Current wallet
+                </span>
+
+                <strong
+                  style={{
+                    color: "#172B4D",
+                  }}
+                >
+                  ₦{walletBalance.toLocaleString()}
+                </strong>
+              </div>
+
+              <div
+                style={{
+                  height: "1px",
+                  background:
+                    "#DDE5EF",
+                  margin:
+                    "13px 0",
+                }}
+              />
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  fontSize: "13px",
+                }}
+              >
+                <strong
+                  style={{
+                    color: "#344563",
+                  }}
+                >
+                  Balance after purchase
+                </strong>
+
+                <strong
+                  style={{
+                    color:
+                      remainingBalance >= 0
+                        ? "#0A6CFF"
+                        : "#D64545",
+                    fontSize: "15px",
+                  }}
+                >
+                  ₦
+                  {Math.max(
+                    remainingBalance,
+                    0
+                  ).toLocaleString()}
+                </strong>
+              </div>
+
+              {remainingBalance < 0 && (
+                <div
+                  style={{
+                    marginTop: "12px",
+                    color: "#D64545",
+                    fontSize: "12px",
+                    fontWeight: "700",
+                  }}
+                >
+                  <i className="bi bi-exclamation-circle me-1"></i>
+                  Insufficient wallet balance.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Purchase Button */}
+          <button
+            type="button"
+            onClick={handlePurchase}
+            disabled={
+              loading ||
+              !phone ||
+              !amount ||
+              airtimeAmount <= 0 ||
+              airtimeAmount >
+                walletBalance
+            }
+            style={{
+              width: "100%",
+              border: "none",
+              borderRadius: "13px",
+              padding: "15px",
+              background:
+                loading ||
+                !phone ||
+                !amount ||
+                airtimeAmount <= 0 ||
+                airtimeAmount >
+                  walletBalance
+                  ? "#B7C5D9"
+                  : "linear-gradient(135deg, #0A6CFF, #0062E6)",
+              color: "#ffffff",
+              fontSize: "14px",
+              fontWeight: "800",
+              cursor:
+                loading ||
+                !phone ||
+                !amount ||
+                airtimeAmount <= 0 ||
+                airtimeAmount >
+                  walletBalance
+                  ? "not-allowed"
+                  : "pointer",
+              boxShadow:
+                loading ||
+                !phone ||
+                !amount ||
+                airtimeAmount <= 0 ||
+                airtimeAmount >
+                  walletBalance
+                  ? "none"
+                  : "0 9px 22px rgba(10, 108, 255, 0.22)",
+            }}
+          >
+            {loading
+              ? "Processing..."
+              : `Buy ₦${
+                  airtimeAmount > 0
+                    ? airtimeAmount.toLocaleString()
+                    : "0"
+                } Airtime`}
+          </button>
+
+          {/* Security */}
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: "16px",
+              color: "#8A99AD",
+              fontSize: "11px",
+            }}
+          >
+            <i className="bi bi-shield-check me-1"></i>
+            Secure wallet-powered purchase
           </div>
-        )}
 
-        <button
-          type="button"
-          className="btn btn-primary w-100"
-          onClick={
-            handlePurchase
-          }
-          disabled={
-            loading ||
-            !phone ||
-            !amount ||
-            airtimeAmount <= 0 ||
-            airtimeAmount >
-              walletBalance
-          }
-        >
-          {loading
-            ? "Processing..."
-            : `Buy ₦${
-                airtimeAmount > 0
-                  ? airtimeAmount.toLocaleString()
-                  : "0"
-              } Airtime`}
-        </button>
-
-        <small className="text-muted d-block mt-3 text-center">
-          Sandbox mode — wallet
-          deduction is enabled.
-        </small>
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: "5px",
+              color: "#A0AEC0",
+              fontSize: "10px",
+            }}
+          >
+            Sandbox mode — wallet deduction is enabled.
+          </div>
+        </div>
       </div>
     </div>
   );

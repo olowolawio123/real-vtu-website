@@ -25,47 +25,80 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Authentication */}
+
+        {/* =========================
+            AUTHENTICATION
+        ========================== */}
+
+        {/* Default page */}
         <Route
           path="/"
           element={<Signup />}
         />
 
+        {/* Signup */}
+        <Route
+          path="/signup"
+          element={<Signup />}
+        />
+
+        {/* Login */}
         <Route
           path="/login"
           element={<Login />}
         />
 
+        {/* Password Reset */}
         <Route
           path="/reset"
           element={<ResetPassword />}
         />
 
-        {/* Dashboard */}
+
+        {/* =========================
+            DASHBOARD
+        ========================== */}
+
         <Route
           path="/dashboard"
           element={<Dashboard />}
         />
 
-        {/* Wallet */}
+
+        {/* =========================
+            WALLET
+        ========================== */}
+
         <Route
           path="/fund-wallet"
           element={<FundWallet />}
         />
 
-        {/* Data */}
+
+        {/* =========================
+            DATA
+        ========================== */}
+
         <Route
           path="/buy-data"
           element={<DataPurchase />}
         />
 
-        {/* Airtime */}
+
+        {/* =========================
+            AIRTIME
+        ========================== */}
+
         <Route
           path="/buy-airtime"
           element={<AirtimePurchase />}
         />
 
-        {/* Electricity */}
+
+        {/* =========================
+            ELECTRICITY
+        ========================== */}
+
         <Route
           path="/buy-electricity"
           element={<ElectricityPurchase />}
@@ -76,7 +109,11 @@ function App() {
           element={<ElectricityPurchase />}
         />
 
-        {/* Cable TV */}
+
+        {/* =========================
+            CABLE TV
+        ========================== */}
+
         <Route
           path="/buy-cable-tv"
           element={<CableTvPurchase />}
@@ -87,20 +124,31 @@ function App() {
           element={<CableTvPurchase />}
         />
 
-        {/* Transactions */}
+
+        {/* =========================
+            TRANSACTIONS
+        ========================== */}
+
         <Route
           path="/transactions"
           element={<TransactionHistory />}
         />
 
-        {/* Admin Dashboard */}
+
+        {/* =========================
+            ADMIN
+        ========================== */}
+
         <Route
           path="/admin"
           element={<AdminDashboard />}
         />
+
       </Routes>
 
-      <ToastContainer position="top-right" />
+      <ToastContainer
+        position="top-right"
+      />
     </Router>
   );
 }

@@ -14,24 +14,14 @@ const DATA_MARKUP = 50;
 
 const DataPurchase = () => {
   const [network, setNetwork] = useState("MTN");
-
   const [plans, setPlans] = useState([]);
-
   const [phone, setPhone] = useState("");
-
   const [selectedPlan, setSelectedPlan] = useState("");
-
   const [loading, setLoading] = useState(false);
 
   const apiUrl =
     process.env.REACT_APP_API_URL ||
     "http://localhost:5000";
-
-  /*
-  |--------------------------------------------------------------------------
-  | Calculate customer selling price
-  |--------------------------------------------------------------------------
-  */
 
   const getSellingPrice = (plan) => {
     const providerPrice =
@@ -39,12 +29,6 @@ const DataPurchase = () => {
 
     return providerPrice + DATA_MARKUP;
   };
-
-  /*
-  |--------------------------------------------------------------------------
-  | Load Data Plans
-  |--------------------------------------------------------------------------
-  */
 
   const loadPlans = useCallback(async () => {
     try {
@@ -54,26 +38,12 @@ const DataPurchase = () => {
 
       if (!currentUser) {
         toast.error("Please log in first.");
-
         setPlans([]);
-
         return;
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | Get Firebase ID token
-      |--------------------------------------------------------------------------
-      */
-
       const idToken =
         await currentUser.getIdToken();
-
-      /*
-      |--------------------------------------------------------------------------
-      | Load plans from backend
-      |--------------------------------------------------------------------------
-      */
 
       const response = await axios.get(
         `${apiUrl}/api/vtu/data-plans`,
@@ -90,12 +60,6 @@ const DataPurchase = () => {
         response.data
       );
 
-      /*
-      |--------------------------------------------------------------------------
-      | Accept provider success response
-      |--------------------------------------------------------------------------
-      */
-
       const payload = response.data;
 
       const requestSuccessful =
@@ -110,59 +74,28 @@ const DataPurchase = () => {
         );
 
         setPlans([]);
-
         return;
       }
-
-      /*
-      |--------------------------------------------------------------------------
-      | Get plans from actual provider response
-      |--------------------------------------------------------------------------
-      */
 
       const providerPlans =
         payload?.dataplans ||
         payload?.data?.dataplans ||
         [];
 
-      console.log(
-        "RAW DATA PLAN LIST:",
-        providerPlans
-      );
-
-      /*
-      |--------------------------------------------------------------------------
-      | Keep active plans
-      |--------------------------------------------------------------------------
-      */
-
       const activePlans =
-        providerPlans.filter(
-          (plan) => {
-            const status =
-              String(
-                plan.status || ""
-              ).toLowerCase();
+        providerPlans.filter((plan) => {
+          const status =
+            String(
+              plan.status || ""
+            ).toLowerCase();
 
-            return (
-              status === "on" ||
-              status === "active" ||
-              status === "enabled" ||
-              status === ""
-            );
-          }
-        );
-
-      console.log(
-        "ACTIVE DATA PLANS:",
-        activePlans
-      );
-
-      /*
-      |--------------------------------------------------------------------------
-      | Save plans
-      |--------------------------------------------------------------------------
-      */
+          return (
+            status === "on" ||
+            status === "active" ||
+            status === "enabled" ||
+            status === ""
+          );
+        });
 
       setPlans(activePlans);
 
@@ -189,21 +122,9 @@ const DataPurchase = () => {
     }
   }, [apiUrl]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Load plans when page opens
-  |--------------------------------------------------------------------------
-  */
-
   useEffect(() => {
     loadPlans();
   }, [loadPlans]);
-
-  /*
-  |--------------------------------------------------------------------------
-  | Filter plans by network
-  |--------------------------------------------------------------------------
-  */
 
   const filteredPlans =
     plans.filter(
@@ -213,19 +134,15 @@ const DataPurchase = () => {
         ).toUpperCase() === network
     );
 
-  /*
-  |--------------------------------------------------------------------------
-  | Purchase Data
-  |--------------------------------------------------------------------------
-  */
+  const selectedPlanData =
+    plans.find(
+      (item) =>
+        String(
+          item.data_plan_id
+        ) === String(selectedPlan)
+    );
 
   const handlePurchase = async () => {
-    /*
-    |--------------------------------------------------------------------------
-    | Check logged-in user
-    |--------------------------------------------------------------------------
-    */
-
     const currentUser =
       auth.currentUser;
 
@@ -233,15 +150,8 @@ const DataPurchase = () => {
       toast.error(
         "Please log in first."
       );
-
       return;
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Check email verification
-    |--------------------------------------------------------------------------
-    */
 
     if (
       currentUser.email &&
@@ -250,15 +160,8 @@ const DataPurchase = () => {
       toast.error(
         "Please verify your email before purchasing."
       );
-
       return;
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Validate phone
-    |--------------------------------------------------------------------------
-    */
 
     if (
       !phone ||
@@ -267,15 +170,8 @@ const DataPurchase = () => {
       toast.error(
         "Enter a valid 11-digit Nigerian phone number."
       );
-
       return;
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Sandbox phone
-    |--------------------------------------------------------------------------
-    */
 
     if (
       process.env.NODE_ENV !==
@@ -285,44 +181,28 @@ const DataPurchase = () => {
       toast.error(
         "Sandbox testing uses 08011111111."
       );
-
       return;
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Check selected plan
-    |--------------------------------------------------------------------------
-    */
 
     if (!selectedPlan) {
       toast.error(
         "Please select a data plan."
       );
-
       return;
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Find selected plan
-    |--------------------------------------------------------------------------
-    */
 
     const plan =
       plans.find(
         (item) =>
           String(
             item.data_plan_id
-          ) ===
-          String(selectedPlan)
+          ) === String(selectedPlan)
       );
 
     if (!plan) {
       toast.error(
         "Selected plan could not be found."
       );
-
       return;
     }
 
@@ -333,20 +213,8 @@ const DataPurchase = () => {
         "Authenticating purchase..."
       );
 
-      /*
-      |--------------------------------------------------------------------------
-      | Get Firebase ID token
-      |--------------------------------------------------------------------------
-      */
-
       const idToken =
         await currentUser.getIdToken();
-
-      /*
-      |--------------------------------------------------------------------------
-      | Purchase data
-      |--------------------------------------------------------------------------
-      */
 
       const response =
         await axios.post(
@@ -368,12 +236,6 @@ const DataPurchase = () => {
         "Purchase response:",
         response.data
       );
-
-      /*
-      |--------------------------------------------------------------------------
-      | Purchase success
-      |--------------------------------------------------------------------------
-      */
 
       if (
         response.data.success ||
@@ -397,7 +259,6 @@ const DataPurchase = () => {
         );
 
         setSelectedPlan("");
-
         setPhone("");
       } else {
         toast.error(
@@ -413,8 +274,7 @@ const DataPurchase = () => {
       );
 
       toast.error(
-        error.response?.data
-          ?.message ||
+        error.response?.data?.message ||
           "Unable to process purchase."
       );
     } finally {
@@ -422,259 +282,735 @@ const DataPurchase = () => {
     }
   };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Render
-  |--------------------------------------------------------------------------
-  */
-
   return (
-    <div className="container mt-4">
-      <div className="card shadow-sm p-4">
+    <div
+      style={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(180deg, #f5f9ff 0%, #eef4ff 100%)",
+        padding: "30px 20px 50px",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "900px",
+          margin: "0 auto",
+        }}
+      >
+        {/* HEADER */}
 
-        <h3 className="mb-4">
-          Buy Data
-        </h3>
-
-        {/* NETWORK */}
-
-        <div className="mb-3">
-          <label className="form-label">
-            Select Network
-          </label>
-
-          <select
-            className="form-select"
-            value={network}
-            onChange={(e) => {
-              setNetwork(
-                e.target.value
-              );
-
-              setSelectedPlan("");
+        <div
+          style={{
+            marginBottom: "25px",
+          }}
+        >
+          <div
+            style={{
+              color: "#2563eb",
+              fontSize: "14px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
+              marginBottom: "6px",
             }}
           >
-            <option value="MTN">
-              MTN
-            </option>
+            INSTANT LOAD
+          </div>
 
-            <option value="AIRTEL">
-              Airtel
-            </option>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: "32px",
+              fontWeight: "800",
+              color: "#0f172a",
+            }}
+          >
+            Buy Data
+          </h2>
 
-            <option value="GLO">
-              Glo
-            </option>
-
-            <option value="9MOBILE">
-              9mobile
-            </option>
-          </select>
+          <p
+            style={{
+              marginTop: "8px",
+              color: "#64748b",
+              fontSize: "15px",
+            }}
+          >
+            Choose a network, select your data
+            plan and get connected instantly.
+          </p>
         </div>
 
-        {/* PHONE */}
+        {/* MAIN CARD */}
 
-        <div className="mb-3">
-          <label className="form-label">
-            Phone Number
-          </label>
+        <div
+          style={{
+            background: "#ffffff",
+            borderRadius: "24px",
+            padding: "30px",
+            boxShadow:
+              "0 15px 45px rgba(15, 23, 42, 0.08)",
+            border:
+              "1px solid rgba(226, 232, 240, 0.8)",
+          }}
+        >
+          {/* NETWORK */}
 
-          <input
-            type="tel"
-            className="form-control"
-            placeholder="08011111111"
-            value={phone}
-            onChange={(e) =>
-              setPhone(
-                e.target.value.replace(
-                  /\D/g,
-                  ""
-                )
-              )
-            }
-            maxLength="11"
-          />
-
-          <small className="text-muted">
-            Sandbox testing uses
-            08011111111.
-          </small>
-        </div>
-
-        {/* PLAN */}
-
-        <div className="mb-3">
-          <label className="form-label">
-            Select Data Plan
-          </label>
-
-          {loading ? (
-            <p>
-              Loading plans...
-            </p>
-          ) : filteredPlans.length ===
-            0 ? (
-            <div className="alert alert-warning">
-              No active plans available
-              for {network}.
-            </div>
-          ) : (
-            <select
-              className="form-select"
-              value={selectedPlan}
-              onChange={(e) =>
-                setSelectedPlan(
-                  e.target.value
-                )
-              }
+          <div style={{ marginBottom: "25px" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "12px",
+                fontSize: "14px",
+                fontWeight: "700",
+                color: "#334155",
+              }}
             >
-              <option value="">
-                -- Select a plan --
-              </option>
+              Select Network
+            </label>
 
-              {filteredPlans.map(
-                (plan) => {
-                  const sellingPrice =
-                    getSellingPrice(
-                      plan
-                    );
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(4, 1fr)",
+                gap: "12px",
+              }}
+            >
+              {[
+                {
+                  value: "MTN",
+                  name: "MTN",
+                  icon: "📱",
+                },
+                {
+                  value: "AIRTEL",
+                  name: "Airtel",
+                  icon: "📶",
+                },
+                {
+                  value: "GLO",
+                  name: "Glo",
+                  icon: "🌐",
+                },
+                {
+                  value: "9MOBILE",
+                  name: "9mobile",
+                  icon: "📡",
+                },
+              ].map((item) => {
+                const active =
+                  network === item.value;
 
-                  return (
-                    <option
-                      key={
-                        plan.data_plan_id
-                      }
-                      value={
-                        plan.data_plan_id
-                      }
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => {
+                      setNetwork(item.value);
+                      setSelectedPlan("");
+                    }}
+                    style={{
+                      border: active
+                        ? "2px solid #2563eb"
+                        : "1px solid #e2e8f0",
+                      background: active
+                        ? "#eff6ff"
+                        : "#ffffff",
+                      borderRadius: "16px",
+                      padding: "15px 10px",
+                      cursor: "pointer",
+                      transition:
+                        "all 0.2s ease",
+                      color: active
+                        ? "#1d4ed8"
+                        : "#475569",
+                      fontWeight: "700",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "22px",
+                        marginBottom: "5px",
+                      }}
                     >
-                      {plan.size} — ₦
-                      {sellingPrice.toLocaleString()}{" "}
-                      (
-                      {plan.duration}{" "}
-                      day
-                      {String(
-                        plan.duration
-                      ) === "1"
-                        ? ""
-                        : "s"}
-                      )
-                    </option>
-                  );
-                }
-              )}
-            </select>
-          )}
-        </div>
+                      {item.icon}
+                    </div>
 
-        {/* PLAN DETAILS */}
+                    <div
+                      style={{
+                        fontSize: "13px",
+                      }}
+                    >
+                      {item.name}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-        {selectedPlan && (
-          <div className="alert alert-info">
-            {(() => {
-              const plan =
-                plans.find(
-                  (item) =>
-                    String(
-                      item.data_plan_id
-                    ) ===
-                    String(
-                      selectedPlan
+          {/* PHONE */}
+
+          <div style={{ marginBottom: "25px" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "9px",
+                fontSize: "14px",
+                fontWeight: "700",
+                color: "#334155",
+              }}
+            >
+              Phone Number
+            </label>
+
+            <div
+              style={{
+                position: "relative",
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  left: "15px",
+                  top: "50%",
+                  transform:
+                    "translateY(-50%)",
+                  fontSize: "19px",
+                }}
+              >
+                📱
+              </span>
+
+              <input
+                type="tel"
+                placeholder="08011111111"
+                value={phone}
+                onChange={(e) =>
+                  setPhone(
+                    e.target.value.replace(
+                      /\D/g,
+                      ""
                     )
-                );
+                  )
+                }
+                maxLength="11"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  height: "54px",
+                  borderRadius: "14px",
+                  border:
+                    "1px solid #dbe3ef",
+                  padding:
+                    "0 15px 0 48px",
+                  fontSize: "15px",
+                  outline: "none",
+                  color: "#0f172a",
+                  background: "#f8fafc",
+                }}
+              />
+            </div>
 
-              if (!plan) {
-                return null;
-              }
+            <div
+              style={{
+                marginTop: "8px",
+                color: "#94a3b8",
+                fontSize: "12px",
+              }}
+            >
+              Sandbox testing uses
+              08011111111.
+            </div>
+          </div>
 
-              const sellingPrice =
-                getSellingPrice(
-                  plan
-                );
+          {/* PLAN */}
 
-              return (
-                <>
-                  <strong>
+          <div style={{ marginBottom: "25px" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "10px",
+                fontSize: "14px",
+                fontWeight: "700",
+                color: "#334155",
+              }}
+            >
+              Select Data Plan
+            </label>
+
+            {loading ? (
+              <div
+                style={{
+                  padding: "20px",
+                  borderRadius: "14px",
+                  background: "#f8fafc",
+                  color: "#64748b",
+                  textAlign: "center",
+                }}
+              >
+                Loading data plans...
+              </div>
+            ) : filteredPlans.length ===
+              0 ? (
+              <div
+                style={{
+                  padding: "16px",
+                  borderRadius: "14px",
+                  background: "#fff7ed",
+                  border:
+                    "1px solid #fed7aa",
+                  color: "#9a3412",
+                  fontSize: "14px",
+                }}
+              >
+                No active plans available
+                for {network}.
+              </div>
+            ) : (
+              <select
+                value={selectedPlan}
+                onChange={(e) =>
+                  setSelectedPlan(
+                    e.target.value
+                  )
+                }
+                style={{
+                  width: "100%",
+                  height: "55px",
+                  borderRadius: "14px",
+                  border:
+                    "1px solid #dbe3ef",
+                  padding: "0 15px",
+                  background: "#f8fafc",
+                  color: "#0f172a",
+                  fontSize: "15px",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="">
+                  Select a data plan
+                </option>
+
+                {filteredPlans.map(
+                  (plan) => {
+                    const sellingPrice =
+                      getSellingPrice(
+                        plan
+                      );
+
+                    return (
+                      <option
+                        key={
+                          plan.data_plan_id
+                        }
+                        value={
+                          plan.data_plan_id
+                        }
+                      >
+                        {plan.size} — ₦
+                        {sellingPrice.toLocaleString()}{" "}
+                        (
+                        {plan.duration}{" "}
+                        day
+                        {String(
+                          plan.duration
+                        ) === "1"
+                          ? ""
+                          : "s"}
+                        )
+                      </option>
+                    );
+                  }
+                )}
+              </select>
+            )}
+          </div>
+
+          {/* PLAN SUMMARY */}
+
+          {selectedPlanData && (
+            <div
+              style={{
+                background:
+                  "linear-gradient(135deg, #eff6ff, #f5f3ff)",
+                borderRadius: "18px",
+                padding: "20px",
+                marginBottom: "25px",
+                border:
+                  "1px solid #dbeafe",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  alignItems: "center",
+                  marginBottom: "15px",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#64748b",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    SELECTED PLAN
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: "22px",
+                      fontWeight: "800",
+                      color: "#0f172a",
+                    }}
+                  >
+                    {selectedPlanData.size}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    textAlign: "right",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#64748b",
+                    }}
+                  >
+                    PRICE
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: "24px",
+                      fontWeight: "800",
+                      color: "#2563eb",
+                    }}
+                  >
+                    ₦
+                    {getSellingPrice(
+                      selectedPlanData
+                    ).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "repeat(3, 1fr)",
+                  gap: "10px",
+                }}
+              >
+                <div
+                  style={{
+                    background:
+                      "rgba(255,255,255,0.75)",
+                    borderRadius: "12px",
+                    padding: "12px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "#64748b",
+                    }}
+                  >
+                    NETWORK
+                  </div>
+
+                  <strong
+                    style={{
+                      fontSize: "13px",
+                    }}
+                  >
                     {
-                      plan.the_network_name
+                      selectedPlanData.the_network_name
                     }
                   </strong>
+                </div>
 
-                  <br />
+                <div
+                  style={{
+                    background:
+                      "rgba(255,255,255,0.75)",
+                    borderRadius: "12px",
+                    padding: "12px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "#64748b",
+                    }}
+                  >
+                    TYPE
+                  </div>
 
-                  Plan:{" "}
-                  {plan.size}
-
-                  <br />
-
-                  Type:{" "}
-                  {
-                    plan.the_datatype_name
-                  }
-
-                  <br />
-
-                  Duration:{" "}
-                  {plan.duration}{" "}
-                  day
-                  {String(
-                    plan.duration
-                  ) === "1"
-                    ? ""
-                    : "s"}
-
-                  <br />
-
-                  <strong>
-                    Price: ₦
-                    {sellingPrice.toLocaleString()}
+                  <strong
+                    style={{
+                      fontSize: "13px",
+                    }}
+                  >
+                    {
+                      selectedPlanData.the_datatype_name
+                    }
                   </strong>
-                </>
-              );
-            })()}
+                </div>
+
+                <div
+                  style={{
+                    background:
+                      "rgba(255,255,255,0.75)",
+                    borderRadius: "12px",
+                    padding: "12px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "#64748b",
+                    }}
+                  >
+                    VALIDITY
+                  </div>
+
+                  <strong
+                    style={{
+                      fontSize: "13px",
+                    }}
+                  >
+                    {
+                      selectedPlanData.duration
+                    }{" "}
+                    day
+                    {String(
+                      selectedPlanData.duration
+                    ) === "1"
+                      ? ""
+                      : "s"}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PURCHASE BUTTON */}
+
+          <button
+            type="button"
+            onClick={handlePurchase}
+            disabled={
+              loading ||
+              !selectedPlan ||
+              !phone
+            }
+            style={{
+              width: "100%",
+              height: "56px",
+              border: "none",
+              borderRadius: "15px",
+              background:
+                loading ||
+                !selectedPlan ||
+                !phone
+                  ? "#cbd5e1"
+                  : "linear-gradient(135deg, #2563eb, #1d4ed8)",
+              color: "#ffffff",
+              fontSize: "15px",
+              fontWeight: "800",
+              cursor:
+                loading ||
+                !selectedPlan ||
+                !phone
+                  ? "not-allowed"
+                  : "pointer",
+              boxShadow:
+                loading ||
+                !selectedPlan ||
+                !phone
+                  ? "none"
+                  : "0 10px 25px rgba(37, 99, 235, 0.25)",
+            }}
+          >
+            {loading
+              ? "Processing..."
+              : selectedPlanData
+              ? `Buy ${selectedPlanData.size} for ₦${getSellingPrice(
+                  selectedPlanData
+                ).toLocaleString()}`
+              : "Buy Data"}
+          </button>
+
+          {/* SECURITY */}
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: "8px",
+              alignItems: "center",
+              marginTop: "20px",
+              color: "#64748b",
+              fontSize: "12px",
+            }}
+          >
+            <span>🔒</span>
+            <span>
+              Secure purchase • Instant delivery
+            </span>
           </div>
-        )}
+        </div>
 
-        {/* BUY BUTTON */}
+        {/* BOTTOM TRUST CARD */}
 
-        <button
-          type="button"
-          className="btn btn-primary w-100"
-          onClick={
-            handlePurchase
-          }
-          disabled={
-            loading ||
-            !selectedPlan ||
-            !phone
-          }
+        <div
+          style={{
+            marginTop: "20px",
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(3, 1fr)",
+            gap: "15px",
+          }}
         >
-          {loading
-            ? "Processing..."
-            : selectedPlan
-            ? `Buy Data for ₦${getSellingPrice(
-                plans.find(
-                  (item) =>
-                    String(
-                      item.data_plan_id
-                    ) ===
-                    String(
-                      selectedPlan
-                    )
-                ) || {
-                  price_for_basicuser: 0,
-                }
-              ).toLocaleString()}`
-            : "Buy Data"}
-        </button>
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "18px",
+              padding: "18px",
+              textAlign: "center",
+              boxShadow:
+                "0 8px 25px rgba(15, 23, 42, 0.05)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "24px",
+                marginBottom: "7px",
+              }}
+            >
+              ⚡
+            </div>
 
-        {/* SANDBOX NOTICE */}
+            <strong
+              style={{
+                display: "block",
+                color: "#0f172a",
+                fontSize: "14px",
+              }}
+            >
+              Fast
+            </strong>
 
-        <small className="text-muted d-block mt-3 text-center">
-          Sandbox mode — testing
-          environment.
-        </small>
+            <span
+              style={{
+                color: "#64748b",
+                fontSize: "12px",
+              }}
+            >
+              Instant processing
+            </span>
+          </div>
 
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "18px",
+              padding: "18px",
+              textAlign: "center",
+              boxShadow:
+                "0 8px 25px rgba(15, 23, 42, 0.05)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "24px",
+                marginBottom: "7px",
+              }}
+            >
+              🛡️
+            </div>
+
+            <strong
+              style={{
+                display: "block",
+                color: "#0f172a",
+                fontSize: "14px",
+              }}
+            >
+              Secure
+            </strong>
+
+            <span
+              style={{
+                color: "#64748b",
+                fontSize: "12px",
+              }}
+            >
+              Protected transactions
+            </span>
+          </div>
+
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "18px",
+              padding: "18px",
+              textAlign: "center",
+              boxShadow:
+                "0 8px 25px rgba(15, 23, 42, 0.05)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "24px",
+                marginBottom: "7px",
+              }}
+            >
+              ✓
+            </div>
+
+            <strong
+              style={{
+                display: "block",
+                color: "#0f172a",
+                fontSize: "14px",
+              }}
+            >
+              Reliable
+            </strong>
+
+            <span
+              style={{
+                color: "#64748b",
+                fontSize: "12px",
+              }}
+            >
+              Trusted service
+            </span>
+          </div>
+        </div>
+
+        {/* SANDBOX */}
+
+        <div
+          style={{
+            textAlign: "center",
+            marginTop: "18px",
+            color: "#94a3b8",
+            fontSize: "11px",
+          }}
+        >
+          Sandbox mode — testing environment.
+        </div>
       </div>
     </div>
   );
