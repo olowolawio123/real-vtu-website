@@ -8,49 +8,75 @@ router.post("/verify-payment", async (req, res) => {
   try {
     const { reference, uid } = req.body;
 
+    console.log("VERIFY PAYMENT REQUEST:", {
+      reference,
+      uid,
+    });
+
     if (!reference || !uid) {
       return res.status(400).json({
+        success: false,
         message: "Payment reference and user ID are required",
       });
     }
 
-    // Verify the transaction directly with Paystack
+    if (!process.env.PAYSTACK_SECRET_KEY) {
+      console.error("PAYSTACK_SECRET_KEY is missing");
+
+      return res.status(500).json({
+        success: false,
+        message: "Paystack secret key is not configured",
+      });
+    }
+
     const response = await axios.get(
       `https://api.paystack.co/transaction/verify/${reference}`,
       {
         headers: {
           Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
         },
+        timeout: 30000,
       }
     );
 
     const transaction = response.data.data;
 
-    // Payment must actually be successful
+    console.log("PAYSTACK VERIFICATION RESULT:", {
+      status: transaction?.status,
+      amount: transaction?.amount,
+      currency: transaction?.currency,
+      metadataUid: transaction?.metadata?.uid || null,
+    });
+
     if (transaction.status !== "success") {
       return res.status(400).json({
+        success: false,
         message: "Payment was not successful",
       });
     }
 
-    // Make sure the payment belongs to this Firebase user
     const paymentUid = transaction.metadata?.uid;
 
     if (!paymentUid || paymentUid !== uid) {
+      console.error("PAYMENT USER MISMATCH:", {
+        paymentUid: paymentUid || null,
+        requestUid: uid,
+      });
+
       return res.status(403).json({
+        success: false,
         message: "Payment user does not match account",
       });
     }
 
     const db = admin.firestore();
+
     const userRef = db.collection("users").doc(uid);
     const paymentRef = db.collection("walletPayments").doc(reference);
 
-    // Use a Firestore transaction so the payment cannot be credited twice
     await db.runTransaction(async (transactionRef) => {
       const paymentSnap = await transactionRef.get(paymentRef);
 
-      // Already credited
       if (paymentSnap.exists && paymentSnap.data().credited === true) {
         return;
       }
@@ -63,7 +89,6 @@ router.post("/verify-payment", async (req, res) => {
         currentBalance = Number(userSnap.data().wallet || 0);
       }
 
-      // Paystack amount is in kobo
       const amountNaira = Number(transaction.amount) / 100;
 
       transactionRef.set(
@@ -85,6 +110,12 @@ router.post("/verify-payment", async (req, res) => {
       });
     });
 
+    console.log("PAYMENT CREDITED SUCCESSFULLY:", {
+      reference,
+      uid,
+      amount: Number(transaction.amount) / 100,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Payment verified and wallet credited",
@@ -92,11 +123,12 @@ router.post("/verify-payment", async (req, res) => {
     });
   } catch (error) {
     console.error(
-      "Payment verification error:",
+      "PAYMENT VERIFICATION ERROR:",
       error.response?.data || error.message
     );
 
     return res.status(500).json({
+      success: false,
       message: "Unable to verify payment",
     });
   }
