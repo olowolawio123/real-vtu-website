@@ -3,6 +3,9 @@ const admin = require("firebase-admin");
 
 const requireAuth = require("../middleware/authMiddleware");
 
+const {
+  verifyTransactionPin,
+} = require("../services/transactionPinService");
 
 const {
   calculateDataPrice,
@@ -366,9 +369,30 @@ router.get(
       const providerResponse =
         await getDataPlans();
 
-      return res.json(
-        providerResponse
+      const providerPlans =
+        providerResponse?.dataplans || [];
+
+      const dynamicPlans = providerPlans.map(
+        (plan) => {
+          const pricing =
+            calculateDataPrice(plan);
+
+          return {
+            ...plan,
+            providerCost:
+              pricing.providerCost,
+            sellingPrice:
+              pricing.sellingPrice,
+            profit:
+              pricing.profit,
+          };
+        }
       );
+
+      return res.json({
+        success: true,
+        dataplans: dynamicPlans,
+      });
     } catch (error) {
       console.error(
         "Data plans error:",
@@ -378,14 +402,12 @@ router.get(
 
       return res.status(500).json({
         success: false,
-
         message:
           "Unable to load data plans.",
       });
     }
   }
 );
-
 
 /* ============================================================
    BUY DATA
@@ -399,16 +421,30 @@ router.post(
       req.user.uid;
 
     const {
-      network,
-      mobileNumber,
-      plan,
-    } = req.body;
+  network,
+  mobileNumber,
+  plan,
+  transactionPin,
+} = req.body;
 
     let orderRef = null;
     let walletTransactionRef = null;
     let requestId = null;
 
     try {
+      const pinVerification =
+  await verifyTransactionPin(
+    uid,
+    transactionPin
+  );
+
+if (!pinVerification.success) {
+  return res.status(401).json({
+    success: false,
+    message:
+      pinVerification.message,
+  });
+}
       if (!network) {
         return res.status(400).json({
           success: false,
@@ -1021,10 +1057,25 @@ router.post(
       req.user.uid;
 
     const {
-      network,
-      mobileNumber,
-      amount,
-    } = req.body;
+  network,
+  mobileNumber,
+  amount,
+  transactionPin,
+} = req.body;
+ 
+const pinVerification =
+  await verifyTransactionPin(
+    uid,
+    transactionPin
+  );
+
+if (!pinVerification.success) {
+  return res.status(401).json({
+    success: false,
+    message:
+      pinVerification.message,
+  });
+}
 
     let orderRef = null;
     let walletTransactionRef = null;
@@ -1693,19 +1744,18 @@ router.post(
 /* ============================================================
    BUY ELECTRICITY
    ============================================================ */
-
 router.post(
   "/buy-electricity",
   requireAuth,
   async (req, res) => {
-    const userId =
-      req.user.uid;
+    const userId = req.user.uid;
 
     const {
       discoName,
       meterNumber,
       meterType,
       amount,
+      transactionPin,
     } = req.body;
 
     let orderRef = null;
@@ -1713,10 +1763,22 @@ router.post(
     let requestId = null;
 
     try {
+      const pinVerification =
+        await verifyTransactionPin(
+          userId,
+          transactionPin
+        );
+
+      if (!pinVerification.success) {
+        return res.status(401).json({
+          success: false,
+          message: pinVerification.message,
+        });
+      }
+
       if (!discoName) {
         return res.status(400).json({
           success: false,
-
           message:
             "Electricity provider is required.",
         });
@@ -1730,9 +1792,7 @@ router.post(
       ) {
         return res.status(400).json({
           success: false,
-
-          message:
-            "Invalid meter number.",
+          message: "Invalid meter number.",
         });
       }
 
@@ -1743,7 +1803,6 @@ router.post(
       ) {
         return res.status(400).json({
           success: false,
-
           message:
             "Sandbox testing uses meter number 1111111111111.",
         });
@@ -1760,7 +1819,6 @@ router.post(
       ) {
         return res.status(400).json({
           success: false,
-
           message:
             "Invalid electricity amount.",
         });
@@ -1773,7 +1831,6 @@ router.post(
       ) {
         return res.status(400).json({
           success: false,
-
           message:
             "Electricity amount must be a whole number.",
         });
@@ -1790,10 +1847,9 @@ router.post(
       const sellingPrice =
         pricing.sellingPrice;
 
-      const userRef =
-        db
-          .collection("users")
-          .doc(userId);
+      const userRef = db
+        .collection("users")
+        .doc(userId);
 
       const normalizedMeterType =
         String(meterType)
@@ -1802,19 +1858,13 @@ router.post(
           ? "postpaid"
           : "prepaid";
 
-      orderRef =
-        db
-          .collection(
-            "electricityOrders"
-          )
-          .doc();
+      orderRef = db
+        .collection("electricityOrders")
+        .doc();
 
-      walletTransactionRef =
-        db
-          .collection(
-            "walletTransactions"
-          )
-          .doc();
+      walletTransactionRef = db
+        .collection("walletTransactions")
+        .doc();
 
       requestId =
         generateRequestId();
@@ -1834,8 +1884,8 @@ router.post(
 
           const currentBalance =
             Number(
-              walletSnap.data()
-                ?.wallet || 0
+              walletSnap.data()?.wallet ||
+                0
             );
 
           if (
@@ -1864,15 +1914,12 @@ router.post(
                 sellingPrice
               : currentBalance;
 
-          if (
-            WALLET_DEBIT_ENABLED
-          ) {
+          if (WALLET_DEBIT_ENABLED) {
             transaction.update(
               userRef,
               {
                 wallet:
                   newBalance,
-
                 updatedAt:
                   admin.firestore
                     .FieldValue
@@ -1884,44 +1931,31 @@ router.post(
           transaction.set(
             orderRef,
             {
-              uid:
-                userId,
-
+              uid: userId,
               orderId:
                 orderRef.id,
-
               requestId,
-
               service:
                 "electricity",
-
               discoName:
                 String(discoName),
-
               meterNumber:
                 String(meterNumber),
-
               meterType:
                 normalizedMeterType,
-
               amount:
                 sellingPrice,
-
               providerAmount:
                 providerCost,
-
               profit:
                 sellingPrice -
                 providerCost,
-
               debitStatus:
                 WALLET_DEBIT_ENABLED
                   ? "debited"
                   : "not_debited",
-
               status:
                 "processing",
-
               createdAt:
                 admin.firestore
                   .FieldValue
@@ -1932,35 +1966,23 @@ router.post(
           transaction.set(
             walletTransactionRef,
             {
-              uid:
-                userId,
-
-              type:
-                "debit",
-
+              uid: userId,
+              type: "debit",
               service:
                 "electricity",
-
               amount:
                 sellingPrice,
-
               orderId:
                 orderRef.id,
-
               requestId,
-
               balanceBefore:
                 currentBalance,
-
               balanceAfter:
                 newBalance,
-
               status:
                 "completed",
-
               description:
                 `Electricity purchase - ${discoName}`,
-
               createdAt:
                 admin.firestore
                   .FieldValue
@@ -1977,13 +1999,10 @@ router.post(
           await purchaseElectricity({
             discoName:
               String(discoName),
-
             meterNumber:
               String(meterNumber),
-
             meterType:
               normalizedMeterType,
-
             amount:
               providerCost,
           });
@@ -1998,16 +2017,6 @@ router.post(
           providerErrorData ||
             providerError.message
         );
-
-        /*
-         * IMPORTANT:
-         *
-         * Axios can throw when VTU returns an HTTP
-         * error response.
-         *
-         * If VTU explicitly says failed/fail,
-         * refund immediately.
-         */
 
         if (
           providerErrorData &&
@@ -2084,7 +2093,6 @@ router.post(
                 {
                   wallet:
                     refundBalance,
-
                   updatedAt:
                     admin.firestore
                       .FieldValue
@@ -2095,29 +2103,21 @@ router.post(
               transaction.update(
                 orderRef,
                 {
-                  status:
-                    "failed",
-
+                  status: "failed",
                   debitStatus:
                     "refunded",
-
                   providerTransactionId:
                     failedProviderTransactionId,
-
                   providerReference:
                     failedProviderReference,
-
                   providerResponse:
                     providerErrorData,
-
                   refundAmount:
                     sellingPrice,
-
                   failedAt:
                     admin.firestore
                       .FieldValue
                       .serverTimestamp(),
-
                   updatedAt:
                     admin.firestore
                       .FieldValue
@@ -2128,21 +2128,15 @@ router.post(
               transaction.update(
                 walletTransactionRef,
                 {
-                  status:
-                    "refunded",
-
+                  status: "refunded",
                   refundAmount:
                     sellingPrice,
-
                   balanceBeforeRefund:
                     currentBalance,
-
                   balanceAfterRefund:
                     refundBalance,
-
                   refundReason:
                     "Electricity provider rejected transaction",
-
                   refundedAt:
                     admin.firestore
                       .FieldValue
@@ -2160,41 +2154,27 @@ router.post(
               transaction.set(
                 refundRef,
                 {
-                  uid:
-                    userId,
-
-                  type:
-                    "refund",
-
+                  uid: userId,
+                  type: "refund",
                   service:
                     "electricity",
-
                   amount:
                     sellingPrice,
-
                   orderId:
                     orderRef.id,
-
                   requestId,
-
                   balanceBefore:
                     currentBalance,
-
                   balanceAfter:
                     refundBalance,
-
                   status:
                     "completed",
-
                   description:
                     "Electricity purchase refund",
-
                   refundReason:
                     "Electricity provider rejected transaction",
-
                   providerTransactionId:
                     failedProviderTransactionId,
-
                   createdAt:
                     admin.firestore
                       .FieldValue
@@ -2206,32 +2186,19 @@ router.post(
 
           return res.status(400).json({
             success: false,
-
             message:
               "Electricity purchase failed. Your wallet has been refunded.",
-
             requestId,
-
             orderId:
               orderRef.id,
           });
         }
 
-        /*
-         * Network error / timeout / ambiguous error.
-         *
-         * Do not refund because VTU may still have
-         * processed the request.
-         */
-
         await orderRef.update({
-          status:
-            "unknown",
-
+          status: "unknown",
           providerError:
             providerErrorData ||
             providerError.message,
-
           updatedAt:
             admin.firestore
               .FieldValue
@@ -2240,47 +2207,43 @@ router.post(
 
         return res.status(202).json({
           success: false,
-
           pending: true,
-
           message:
             "Your electricity request is being checked. Please do not purchase again yet.",
-
           requestId,
-
           orderId:
             orderRef.id,
         });
       }
 
       const providerTransactionId =
-  providerResponse?.transaction_id ||
-  providerResponse?.transactionId ||
-  providerResponse?.id ||
-  providerResponse?.ident ||
-  providerResponse?.data?.transaction_id ||
-  providerResponse?.data?.transactionId ||
-  providerResponse?.data?.id ||
-  providerResponse?.data?.ident ||
-  providerResponse?.data?.transaction?.transaction_id ||
-  providerResponse?.data?.transaction?.transaction_id ||
-  providerResponse?.data?.transaction?.id ||
-  providerResponse?.data?.transaction?.ident ||
-  null;
+        providerResponse?.transaction_id ||
+        providerResponse?.transactionId ||
+        providerResponse?.id ||
+        providerResponse?.ident ||
+        providerResponse?.data
+          ?.transaction_id ||
+        providerResponse?.data
+          ?.transactionId ||
+        providerResponse?.data?.id ||
+        providerResponse?.data?.ident ||
+        providerResponse?.data
+          ?.transaction
+          ?.transaction_id ||
+        providerResponse?.data
+          ?.transaction?.id ||
+        providerResponse?.data
+          ?.transaction?.ident ||
+        null;
 
-console.log(
-  "ELECTRICITY PROVIDER RESPONSE:",
-  JSON.stringify(
-    providerResponse,
-    null,
-    2
-  )
-);
-
-console.log(
-  "ELECTRICITY PROVIDER TRANSACTION ID:",
-  providerTransactionId
-);
+      console.log(
+        "ELECTRICITY PROVIDER RESPONSE:",
+        JSON.stringify(
+          providerResponse,
+          null,
+          2
+        )
+      );
 
       console.log(
         "ELECTRICITY PROVIDER TRANSACTION ID:",
@@ -2356,7 +2319,6 @@ console.log(
               {
                 wallet:
                   refundBalance,
-
                 updatedAt:
                   admin.firestore
                     .FieldValue
@@ -2367,21 +2329,14 @@ console.log(
             transaction.update(
               orderRef,
               {
-                status:
-                  "failed",
-
+                status: "failed",
                 debitStatus:
                   "refunded",
-
                 providerTransactionId,
-
                 providerReference,
-
                 providerResponse,
-
                 refundAmount:
                   sellingPrice,
-
                 failedAt:
                   admin.firestore
                     .FieldValue
@@ -2392,21 +2347,15 @@ console.log(
             transaction.update(
               walletTransactionRef,
               {
-                status:
-                  "refunded",
-
+                status: "refunded",
                 refundAmount:
                   sellingPrice,
-
                 balanceBeforeRefund:
                   currentBalance,
-
                 balanceAfterRefund:
                   refundBalance,
-
                 refundReason:
                   "Electricity provider rejected transaction",
-
                 refundedAt:
                   admin.firestore
                     .FieldValue
@@ -2424,35 +2373,23 @@ console.log(
             transaction.set(
               refundRef,
               {
-                uid:
-                  userId,
-
-                type:
-                  "refund",
-
+                uid: userId,
+                type: "refund",
                 service:
                   "electricity",
-
                 amount:
                   sellingPrice,
-
                 orderId:
                   orderRef.id,
-
                 requestId,
-
                 balanceBefore:
                   currentBalance,
-
                 balanceAfter:
                   refundBalance,
-
                 status:
                   "completed",
-
                 description:
                   "Electricity purchase refund",
-
                 createdAt:
                   admin.firestore
                     .FieldValue
@@ -2464,12 +2401,9 @@ console.log(
 
         return res.status(400).json({
           success: false,
-
           message:
             "Electricity purchase failed. Your wallet has been refunded.",
-
           requestId,
-
           orderId:
             orderRef.id,
         });
@@ -2481,15 +2415,10 @@ console.log(
         )
       ) {
         await orderRef.update({
-          status:
-            "unknown",
-
+          status: "unknown",
           providerTransactionId,
-
           providerReference,
-
           providerResponse,
-
           updatedAt:
             admin.firestore
               .FieldValue
@@ -2498,14 +2427,10 @@ console.log(
 
         return res.status(202).json({
           success: false,
-
           pending: true,
-
           message:
             "Your electricity purchase is still being processed. Please do not purchase again yet.",
-
           requestId,
-
           orderId:
             orderRef.id,
         });
@@ -2524,22 +2449,15 @@ console.log(
           transaction.update(
             orderRef,
             {
-              status:
-                "successful",
-
+              status: "successful",
               providerTransactionId,
-
               providerReference,
-
               electricityToken,
-
               providerResponse,
-
               completedAt:
                 admin.firestore
                   .FieldValue
                   .serverTimestamp(),
-
               updatedAt:
                 admin.firestore
                   .FieldValue
@@ -2550,13 +2468,9 @@ console.log(
           transaction.update(
             walletTransactionRef,
             {
-              status:
-                "successful",
-
+              status: "successful",
               providerTransactionId,
-
               providerReference,
-
               completedAt:
                 admin.firestore
                   .FieldValue
@@ -2568,28 +2482,19 @@ console.log(
 
       return res.json({
         success: true,
-
         message:
           "Electricity purchase successful.",
-
         requestId,
-
         orderId:
           orderRef.id,
-
         providerTransactionId,
-
         providerReference,
-
         token:
           electricityToken,
-
         amount:
           sellingPrice,
-
         meterNumber:
           String(meterNumber),
-
         meterType:
           normalizedMeterType,
       });
@@ -2605,7 +2510,6 @@ console.log(
       ) {
         return res.status(404).json({
           success: false,
-
           message:
             "User wallet was not found.",
         });
@@ -2617,7 +2521,6 @@ console.log(
       ) {
         return res.status(400).json({
           success: false,
-
           message:
             "Insufficient wallet balance.",
         });
@@ -2629,7 +2532,6 @@ console.log(
       ) {
         return res.status(400).json({
           success: false,
-
           message:
             "Invalid wallet balance.",
         });
@@ -2637,19 +2539,15 @@ console.log(
 
       return res.status(500).json({
         success: false,
-
         message:
           "Unable to process electricity purchase.",
-
         requestId,
-
         orderId:
           orderRef?.id || null,
       });
     }
   }
 );
-
 
 /* ============================================================
    CABLE TV PLANS
@@ -2880,6 +2778,7 @@ router.post(
       smartCardNumber,
       cablePlan,
       amount,
+      transactionPin,
     } = req.body;
 
     let orderRef = null;
@@ -2887,10 +2786,25 @@ router.post(
     let requestId = null;
 
     try {
+      // Verify Transaction PIN before doing anything
+      // that can debit the user's wallet.
+      const pinVerification =
+        await verifyTransactionPin(
+          uid,
+          transactionPin
+        );
+
+      if (!pinVerification.success) {
+        return res.status(401).json({
+          success: false,
+          message:
+            pinVerification.message,
+        });
+      }
+
       if (!cableName) {
         return res.status(400).json({
           success: false,
-
           message:
             "Cable TV provider is required.",
         });
@@ -2899,7 +2813,6 @@ router.post(
       if (!smartCardNumber) {
         return res.status(400).json({
           success: false,
-
           message:
             "Smart card number is required.",
         });
@@ -2908,7 +2821,6 @@ router.post(
       if (!cablePlan) {
         return res.status(400).json({
           success: false,
-
           message:
             "Cable TV plan is required.",
         });
@@ -2926,7 +2838,6 @@ router.post(
       ) {
         return res.status(400).json({
           success: false,
-
           message:
             "Invalid smart card number.",
         });
@@ -2939,7 +2850,6 @@ router.post(
       ) {
         return res.status(400).json({
           success: false,
-
           message:
             "Sandbox testing uses smart card number 1212121212.",
         });
@@ -2956,7 +2866,6 @@ router.post(
       ) {
         return res.status(400).json({
           success: false,
-
           message:
             "Invalid Cable TV amount.",
         });
@@ -2969,7 +2878,6 @@ router.post(
       ) {
         return res.status(400).json({
           success: false,
-
           message:
             "Cable TV amount must be a whole number.",
         });
@@ -3444,6 +3352,5 @@ router.post(
     }
   }
 );
-
 
 module.exports = router;

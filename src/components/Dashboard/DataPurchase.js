@@ -10,8 +10,6 @@ import { auth } from "../../firebase";
 
 import { toast } from "react-toastify";
 
-const DATA_MARKUP = 50;
-
 const DataPurchase = () => {
   const [network, setNetwork] = useState("MTN");
   const [plans, setPlans] = useState([]);
@@ -19,16 +17,12 @@ const DataPurchase = () => {
   const [selectedPlan, setSelectedPlan] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [transactionPin, setTransactionPin] = useState("");
+
   const apiUrl =
     process.env.REACT_APP_API_URL ||
     "http://localhost:5000";
-
-  const getSellingPrice = (plan) => {
-    const providerPrice =
-      Number(plan.price_for_basicuser);
-
-    return providerPrice + DATA_MARKUP;
-  };
 
   const loadPlans = useCallback(async () => {
     try {
@@ -147,9 +141,7 @@ const DataPurchase = () => {
       auth.currentUser;
 
     if (!currentUser) {
-      toast.error(
-        "Please log in first."
-      );
+      toast.error("Please log in first.");
       return;
     }
 
@@ -206,12 +198,57 @@ const DataPurchase = () => {
       return;
     }
 
+    if (
+      !Number.isFinite(
+        Number(plan.sellingPrice)
+      ) ||
+      Number(plan.sellingPrice) <= 0
+    ) {
+      toast.error(
+        "This data plan has an invalid selling price."
+      );
+      return;
+    }
+
+    setTransactionPin("");
+    setShowPinModal(true);
+  };
+
+  const submitDataPurchase = async () => {
+    const currentUser =
+      auth.currentUser;
+
+    if (!currentUser) {
+      toast.error("Please log in first.");
+      return;
+    }
+
+    if (
+      !/^\d{4}$/.test(transactionPin)
+    ) {
+      toast.error(
+        "Enter your 4-digit transaction PIN."
+      );
+      return;
+    }
+
+    const plan =
+      plans.find(
+        (item) =>
+          String(
+            item.data_plan_id
+          ) === String(selectedPlan)
+      );
+
+    if (!plan) {
+      toast.error(
+        "Selected plan could not be found."
+      );
+      return;
+    }
+
     try {
       setLoading(true);
-
-      toast.info(
-        "Authenticating purchase..."
-      );
 
       const idToken =
         await currentUser.getIdToken();
@@ -223,6 +260,7 @@ const DataPurchase = () => {
             network,
             mobileNumber: phone,
             plan: selectedPlan,
+            transactionPin,
           },
           {
             headers: {
@@ -233,16 +271,14 @@ const DataPurchase = () => {
         );
 
       console.log(
-        "Purchase response:",
+        "Data purchase response:",
         response.data
       );
 
       if (
         response.data.success ||
-        response.data.status ===
-          "success" ||
-        response.data.Status ===
-          "successful"
+        response.data.status === "success" ||
+        response.data.Status === "successful"
       ) {
         toast.success(
           `Data purchase successful: ${plan.size} to ${phone}`
@@ -258,28 +294,53 @@ const DataPurchase = () => {
           response.data.providerResponse
         );
 
+        setShowPinModal(false);
+        setTransactionPin("");
         setSelectedPlan("");
         setPhone("");
-      } else {
-        toast.error(
-          response.data.message ||
-            "Purchase failed."
-        );
+
+        return;
       }
+
+      toast.error(
+        response.data.message ||
+          "Purchase failed."
+      );
     } catch (error) {
       console.error(
-        "Purchase error:",
+        "Data purchase error:",
         error.response?.data ||
           error.message
       );
 
-      toast.error(
+      const status =
+        error.response?.status;
+
+      const message =
         error.response?.data?.message ||
-          "Unable to process purchase."
-      );
+        "Unable to process purchase.";
+
+      toast.error(message);
+
+      if (status === 401) {
+        setTransactionPin("");
+        return;
+      }
+
+      setShowPinModal(false);
+      setTransactionPin("");
     } finally {
       setLoading(false);
     }
+  };
+
+  const closePinModal = () => {
+    if (loading) {
+      return;
+    }
+
+    setShowPinModal(false);
+    setTransactionPin("");
   };
 
   return (
@@ -297,8 +358,6 @@ const DataPurchase = () => {
           margin: "0 auto",
         }}
       >
-        {/* HEADER */}
-
         <div
           style={{
             marginBottom: "25px",
@@ -340,8 +399,6 @@ const DataPurchase = () => {
           </p>
         </div>
 
-        {/* MAIN CARD */}
-
         <div
           style={{
             background: "#ffffff",
@@ -353,9 +410,11 @@ const DataPurchase = () => {
               "1px solid rgba(226, 232, 240, 0.8)",
           }}
         >
-          {/* NETWORK */}
-
-          <div style={{ marginBottom: "25px" }}>
+          <div
+            style={{
+              marginBottom: "25px",
+            }}
+          >
             <label
               style={{
                 display: "block",
@@ -406,7 +465,9 @@ const DataPurchase = () => {
                     key={item.value}
                     type="button"
                     onClick={() => {
-                      setNetwork(item.value);
+                      setNetwork(
+                        item.value
+                      );
                       setSelectedPlan("");
                     }}
                     style={{
@@ -417,7 +478,8 @@ const DataPurchase = () => {
                         ? "#eff6ff"
                         : "#ffffff",
                       borderRadius: "16px",
-                      padding: "15px 10px",
+                      padding:
+                        "15px 10px",
                       cursor: "pointer",
                       transition:
                         "all 0.2s ease",
@@ -449,9 +511,11 @@ const DataPurchase = () => {
             </div>
           </div>
 
-          {/* PHONE */}
-
-          <div style={{ marginBottom: "25px" }}>
+          <div
+            style={{
+              marginBottom: "25px",
+            }}
+          >
             <label
               style={{
                 display: "block",
@@ -497,7 +561,8 @@ const DataPurchase = () => {
                 maxLength="11"
                 style={{
                   width: "100%",
-                  boxSizing: "border-box",
+                  boxSizing:
+                    "border-box",
                   height: "54px",
                   borderRadius: "14px",
                   border:
@@ -507,7 +572,8 @@ const DataPurchase = () => {
                   fontSize: "15px",
                   outline: "none",
                   color: "#0f172a",
-                  background: "#f8fafc",
+                  background:
+                    "#f8fafc",
                 }}
               />
             </div>
@@ -524,9 +590,11 @@ const DataPurchase = () => {
             </div>
           </div>
 
-          {/* PLAN */}
-
-          <div style={{ marginBottom: "25px" }}>
+          <div
+            style={{
+              marginBottom: "25px",
+            }}
+          >
             <label
               style={{
                 display: "block",
@@ -544,7 +612,8 @@ const DataPurchase = () => {
                 style={{
                   padding: "20px",
                   borderRadius: "14px",
-                  background: "#f8fafc",
+                  background:
+                    "#f8fafc",
                   color: "#64748b",
                   textAlign: "center",
                 }}
@@ -557,7 +626,8 @@ const DataPurchase = () => {
                 style={{
                   padding: "16px",
                   borderRadius: "14px",
-                  background: "#fff7ed",
+                  background:
+                    "#fff7ed",
                   border:
                     "1px solid #fed7aa",
                   color: "#9a3412",
@@ -582,7 +652,8 @@ const DataPurchase = () => {
                   border:
                     "1px solid #dbe3ef",
                   padding: "0 15px",
-                  background: "#f8fafc",
+                  background:
+                    "#f8fafc",
                   color: "#0f172a",
                   fontSize: "15px",
                   outline: "none",
@@ -594,41 +665,34 @@ const DataPurchase = () => {
                 </option>
 
                 {filteredPlans.map(
-                  (plan) => {
-                    const sellingPrice =
-                      getSellingPrice(
-                        plan
-                      );
-
-                    return (
-                      <option
-                        key={
-                          plan.data_plan_id
-                        }
-                        value={
-                          plan.data_plan_id
-                        }
-                      >
-                        {plan.size} — ₦
-                        {sellingPrice.toLocaleString()}{" "}
-                        (
-                        {plan.duration}{" "}
-                        day
-                        {String(
-                          plan.duration
-                        ) === "1"
-                          ? ""
-                          : "s"}
-                        )
-                      </option>
-                    );
-                  }
+                  (plan) => (
+                    <option
+                      key={
+                        plan.data_plan_id
+                      }
+                      value={
+                        plan.data_plan_id
+                      }
+                    >
+                      {plan.size} — ₦
+                      {Number(
+                        plan.sellingPrice
+                      ).toLocaleString()}{" "}
+                      (
+                      {plan.duration}{" "}
+                      day
+                      {String(
+                        plan.duration
+                      ) === "1"
+                        ? ""
+                        : "s"}
+                      )
+                    </option>
+                  )
                 )}
               </select>
             )}
           </div>
-
-          {/* PLAN SUMMARY */}
 
           {selectedPlanData && (
             <div
@@ -647,8 +711,10 @@ const DataPurchase = () => {
                   display: "flex",
                   justifyContent:
                     "space-between",
-                  alignItems: "center",
-                  marginBottom: "15px",
+                  alignItems:
+                    "center",
+                  marginBottom:
+                    "15px",
                 }}
               >
                 <div>
@@ -656,7 +722,8 @@ const DataPurchase = () => {
                     style={{
                       fontSize: "12px",
                       color: "#64748b",
-                      marginBottom: "4px",
+                      marginBottom:
+                        "4px",
                     }}
                   >
                     SELECTED PLAN
@@ -669,7 +736,9 @@ const DataPurchase = () => {
                       color: "#0f172a",
                     }}
                   >
-                    {selectedPlanData.size}
+                    {
+                      selectedPlanData.size
+                    }
                   </div>
                 </div>
 
@@ -695,8 +764,8 @@ const DataPurchase = () => {
                     }}
                   >
                     ₦
-                    {getSellingPrice(
-                      selectedPlanData
+                    {Number(
+                      selectedPlanData.sellingPrice
                     ).toLocaleString()}
                   </div>
                 </div>
@@ -714,7 +783,8 @@ const DataPurchase = () => {
                   style={{
                     background:
                       "rgba(255,255,255,0.75)",
-                    borderRadius: "12px",
+                    borderRadius:
+                      "12px",
                     padding: "12px",
                   }}
                 >
@@ -742,7 +812,8 @@ const DataPurchase = () => {
                   style={{
                     background:
                       "rgba(255,255,255,0.75)",
-                    borderRadius: "12px",
+                    borderRadius:
+                      "12px",
                     padding: "12px",
                   }}
                 >
@@ -770,7 +841,8 @@ const DataPurchase = () => {
                   style={{
                     background:
                       "rgba(255,255,255,0.75)",
-                    borderRadius: "12px",
+                    borderRadius:
+                      "12px",
                     padding: "12px",
                   }}
                 >
@@ -802,8 +874,6 @@ const DataPurchase = () => {
               </div>
             </div>
           )}
-
-          {/* PURCHASE BUTTON */}
 
           <button
             type="button"
@@ -844,33 +914,34 @@ const DataPurchase = () => {
             {loading
               ? "Processing..."
               : selectedPlanData
-              ? `Buy ${selectedPlanData.size} for ₦${getSellingPrice(
-                  selectedPlanData
+              ? `Buy ${
+                  selectedPlanData.size
+                } for ₦${Number(
+                  selectedPlanData.sellingPrice
                 ).toLocaleString()}`
               : "Buy Data"}
           </button>
 
-          {/* SECURITY */}
-
           <div
             style={{
               display: "flex",
-              justifyContent: "center",
+              justifyContent:
+                "center",
               gap: "8px",
-              alignItems: "center",
+              alignItems:
+                "center",
               marginTop: "20px",
               color: "#64748b",
               fontSize: "12px",
             }}
           >
             <span>🔒</span>
+
             <span>
-              Secure purchase • Instant delivery
+              Secure purchase • Transaction PIN protected
             </span>
           </div>
         </div>
-
-        {/* BOTTOM TRUST CARD */}
 
         <div
           style={{
@@ -955,7 +1026,7 @@ const DataPurchase = () => {
                 fontSize: "12px",
               }}
             >
-              Protected transactions
+              PIN protected
             </span>
           </div>
 
@@ -999,8 +1070,6 @@ const DataPurchase = () => {
           </div>
         </div>
 
-        {/* SANDBOX */}
-
         <div
           style={{
             textAlign: "center",
@@ -1012,6 +1081,217 @@ const DataPurchase = () => {
           Sandbox mode — testing environment.
         </div>
       </div>
+
+      {showPinModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background:
+              "rgba(15, 23, 42, 0.60)",
+            display: "flex",
+            alignItems:
+              "center",
+            justifyContent:
+              "center",
+            padding: "20px",
+            zIndex: 9999,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "390px",
+              background: "#ffffff",
+              borderRadius: "24px",
+              padding: "28px",
+              boxShadow:
+                "0 25px 70px rgba(15, 23, 42, 0.25)",
+            }}
+          >
+            <div
+              style={{
+                textAlign: "center",
+                marginBottom:
+                  "22px",
+              }}
+            >
+              <div
+                style={{
+                  width: "60px",
+                  height: "60px",
+                  borderRadius:
+                    "50%",
+                  background:
+                    "#eff6ff",
+                  display: "flex",
+                  alignItems:
+                    "center",
+                  justifyContent:
+                    "center",
+                  margin:
+                    "0 auto 14px",
+                  fontSize: "26px",
+                }}
+              >
+                🔐
+              </div>
+
+              <h3
+                style={{
+                  margin: 0,
+                  color: "#0f172a",
+                  fontSize: "22px",
+                  fontWeight: "800",
+                }}
+              >
+                Enter Transaction PIN
+              </h3>
+
+              <p
+                style={{
+                  margin:
+                    "8px 0 0",
+                  color: "#64748b",
+                  fontSize: "13px",
+                  lineHeight:
+                    "1.5",
+                }}
+              >
+                Enter your 4-digit PIN
+                to authorize this data
+                purchase.
+              </p>
+            </div>
+
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              autoFocus
+              value={transactionPin}
+              onChange={(e) =>
+                setTransactionPin(
+                  e.target.value.replace(
+                    /\D/g,
+                    ""
+                  )
+                )
+              }
+              onKeyDown={(e) => {
+                if (
+                  e.key ===
+                    "Enter" &&
+                  transactionPin.length ===
+                    4 &&
+                  !loading
+                ) {
+                  submitDataPurchase();
+                }
+              }}
+              placeholder="••••"
+              style={{
+                width: "100%",
+                height: "58px",
+                boxSizing:
+                  "border-box",
+                borderRadius:
+                  "14px",
+                border:
+                  "1px solid #dbe3ef",
+                background:
+                  "#f8fafc",
+                textAlign:
+                  "center",
+                fontSize: "25px",
+                letterSpacing:
+                  "10px",
+                outline: "none",
+                color: "#0f172a",
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={
+                submitDataPurchase
+              }
+              disabled={
+                loading ||
+                transactionPin.length !==
+                  4
+              }
+              style={{
+                width: "100%",
+                height: "52px",
+                marginTop:
+                  "16px",
+                border: "none",
+                borderRadius:
+                  "14px",
+                background:
+                  loading ||
+                  transactionPin.length !==
+                    4
+                    ? "#cbd5e1"
+                    : "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                color: "#ffffff",
+                fontSize: "15px",
+                fontWeight: "800",
+                cursor:
+                  loading ||
+                  transactionPin.length !==
+                    4
+                    ? "not-allowed"
+                    : "pointer",
+              }}
+            >
+              {loading
+                ? "Processing..."
+                : "Confirm Purchase"}
+            </button>
+
+            <button
+              type="button"
+              onClick={
+                closePinModal
+              }
+              disabled={loading}
+              style={{
+                width: "100%",
+                height: "48px",
+                marginTop: "10px",
+                border: "none",
+                background:
+                  "transparent",
+                color: "#64748b",
+                fontSize: "14px",
+                fontWeight: "700",
+                cursor:
+                  loading
+                    ? "not-allowed"
+                    : "pointer",
+              }}
+            >
+              Cancel
+            </button>
+
+            <div
+              style={{
+                textAlign:
+                  "center",
+                marginTop:
+                  "10px",
+                color: "#94a3b8",
+                fontSize: "11px",
+              }}
+            >
+              🔒 Your PIN is securely
+              verified.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

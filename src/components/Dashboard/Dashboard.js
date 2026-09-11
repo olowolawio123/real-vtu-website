@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { auth, db } from "../../firebase";
-import { signOut } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
@@ -11,6 +10,7 @@ const Dashboard = () => {
   const [wallet, setWallet] = useState(0);
   const [user, setUser] = useState(null);
   const [userName, setUserName] = useState("");
+  const [profilePhoto, setProfilePhoto] = useState("");
 
   useEffect(() => {
     let unsubscribeWallet;
@@ -21,6 +21,7 @@ const Dashboard = () => {
       if (!authUser) {
         setWallet(0);
         setUserName("");
+        setProfilePhoto("");
         return;
       }
 
@@ -40,6 +41,8 @@ const Dashboard = () => {
                 authUser.email?.split("@")[0] ||
                 "there"
             );
+
+            setProfilePhoto(data.profilePhoto || "");
           } else {
             setWallet(0);
 
@@ -48,6 +51,8 @@ const Dashboard = () => {
                 authUser.email?.split("@")[0] ||
                 "there"
             );
+
+            setProfilePhoto("");
           }
         },
         (error) => {
@@ -60,6 +65,8 @@ const Dashboard = () => {
               authUser.email?.split("@")[0] ||
               "there"
           );
+
+          setProfilePhoto("");
         }
       );
     });
@@ -73,18 +80,18 @@ const Dashboard = () => {
     };
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
+  const getInitials = () => {
+    const name = userName || user?.email?.split("@")[0] || "U";
 
-      toast.success("Logged out successfully");
+    const parts = name.trim().split(/\s+/);
 
-      navigate("/login");
-    } catch (error) {
-      console.error("Logout error:", error);
-
-      toast.error("Unable to log out");
+    if (parts.length >= 2) {
+      return (
+        parts[0].charAt(0) + parts[1].charAt(0)
+      ).toUpperCase();
     }
+
+    return name.substring(0, 2).toUpperCase();
   };
 
   const actions = [
@@ -134,7 +141,8 @@ const Dashboard = () => {
           background: "#071A3D",
           color: "#ffffff",
           padding: "16px 24px",
-          boxShadow: "0 4px 20px rgba(7, 26, 61, 0.15)",
+          boxShadow:
+            "0 4px 20px rgba(7, 26, 61, 0.15)",
         }}
       >
         <div
@@ -197,40 +205,50 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* User Section */}
-          <div
+          {/* Profile Avatar */}
+          <button
+            onClick={() => navigate("/account")}
+            aria-label="Open account"
             style={{
+              width: "46px",
+              height: "46px",
+              borderRadius: "50%",
+              border:
+                "2px solid rgba(255,255,255,0.75)",
+              padding: 0,
+              background: "#0A6CFF",
+              color: "#ffffff",
+              cursor: "pointer",
+              overflow: "hidden",
               display: "flex",
               alignItems: "center",
-              gap: "16px",
+              justifyContent: "center",
+              boxShadow:
+                "0 4px 12px rgba(0,0,0,0.18)",
             }}
           >
-            <div
-              className="dashboard-user-email"
-              style={{
-                display: "none",
-              }}
-            >
-              {user?.email || ""}
-            </div>
-
-            <button
-              onClick={handleLogout}
-              style={{
-                border: "1px solid rgba(255,255,255,0.25)",
-                background: "rgba(255,255,255,0.08)",
-                color: "#ffffff",
-                borderRadius: "10px",
-                padding: "9px 14px",
-                fontSize: "13px",
-                fontWeight: "600",
-                cursor: "pointer",
-              }}
-            >
-              <i className="bi bi-box-arrow-right me-1"></i>
-              Logout
-            </button>
-          </div>
+            {profilePhoto ? (
+              <img
+                src={profilePhoto}
+                alt="Profile"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                }}
+              />
+            ) : (
+              <span
+                style={{
+                  fontSize: "15px",
+                  fontWeight: "800",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                {getInitials()}
+              </span>
+            )}
+          </button>
         </div>
       </nav>
 
@@ -315,7 +333,8 @@ const Dashboard = () => {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) auto",
+            gridTemplateColumns:
+              "minmax(0, 1fr) auto",
             gap: "20px",
             marginBottom: "30px",
           }}
@@ -687,14 +706,9 @@ const Dashboard = () => {
         </div>
       </main>
 
-      {/* Mobile adjustments */}
       <style>
         {`
           @media (max-width: 576px) {
-            .dashboard-user-email {
-              display: none !important;
-            }
-
             nav {
               padding: 12px 16px !important;
             }
@@ -720,11 +734,6 @@ const Dashboard = () => {
 
             nav > div > div:first-child > div:last-child > div:last-child {
               font-size: 8px !important;
-            }
-
-            nav button {
-              padding: 8px 10px !important;
-              font-size: 12px !important;
             }
 
             main {

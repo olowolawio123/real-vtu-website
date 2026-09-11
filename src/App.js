@@ -10,14 +10,21 @@ import Login from "./components/Auth/Login";
 import ResetPassword from "./components/Auth/ResetPassword";
 
 import Dashboard from "./components/Dashboard/Dashboard";
+import Account from "./components/Account/Account";
 import FundWallet from "./components/Dashboard/FundWallet";
 import DataPurchase from "./components/Dashboard/DataPurchase";
 import AirtimePurchase from "./components/Dashboard/AirtimePurchase";
 import ElectricityPurchase from "./components/Dashboard/ElectricityPurchase";
 import CableTvPurchase from "./components/Dashboard/CableTvPurchase";
 import TransactionHistory from "./components/Dashboard/TransactionHistory";
+import Security from "./components/Account/Security";
+import Profile from "./components/Account/Profile";
+import Beneficiaries from "./components/Account/Beneficiaries";
+import HelpSupport from "./components/Account/HelpSupport";
 
 import AdminDashboard from "./components/Admin/AdminDashboard";
+
+import UserLayout from "./components/Navigation/UserLayout";
 
 import { ToastContainer } from "react-toastify";
 
@@ -30,25 +37,21 @@ function App() {
             AUTHENTICATION
         ========================== */}
 
-        {/* Default page */}
         <Route
           path="/"
           element={<Signup />}
         />
 
-        {/* Signup */}
         <Route
           path="/signup"
           element={<Signup />}
         />
 
-        {/* Login */}
         <Route
           path="/login"
           element={<Login />}
         />
 
-        {/* Password Reset */}
         <Route
           path="/reset"
           element={<ResetPassword />}
@@ -56,83 +59,83 @@ function App() {
 
 
         {/* =========================
-            DASHBOARD
+            USER AREA
+            Bottom navigation is added
+            ONCE through UserLayout.
         ========================== */}
 
-        <Route
-          path="/dashboard"
-          element={<Dashboard />}
-        />
+        <Route element={<UserLayout />}>
 
 
-        {/* =========================
-            WALLET
-        ========================== */}
+        <Route  path="/beneficiaries"
+         element={<Beneficiaries />} 
+         />
 
-        <Route
-          path="/fund-wallet"
-          element={<FundWallet />}
-        />
+         <Route path="/help-support" 
+         element={<HelpSupport />} 
+         />
 
+          <Route
+            path="/dashboard"
+            element={<Dashboard />}
+          />
 
-        {/* =========================
-            DATA
-        ========================== */}
+          <Route
+            path="/account"
+            element={<Account />}
+          />
 
-        <Route
-          path="/buy-data"
-          element={<DataPurchase />}
-        />
+          <Route
+  path="/profile"
+  element={<Profile />}
+/>
 
+          <Route
+            path="/security"
+            element={<Security />}
+          />
 
-        {/* =========================
-            AIRTIME
-        ========================== */}
+          <Route
+            path="/fund-wallet"
+            element={<FundWallet />}
+          />
 
-        <Route
-          path="/buy-airtime"
-          element={<AirtimePurchase />}
-        />
+          <Route
+            path="/buy-data"
+            element={<DataPurchase />}
+          />
 
+          <Route
+            path="/buy-airtime"
+            element={<AirtimePurchase />}
+          />
 
-        {/* =========================
-            ELECTRICITY
-        ========================== */}
+          <Route
+            path="/buy-electricity"
+            element={<ElectricityPurchase />}
+          />
 
-        <Route
-          path="/buy-electricity"
-          element={<ElectricityPurchase />}
-        />
+          <Route
+            path="/electricity"
+            element={<ElectricityPurchase />}
+          />
 
-        <Route
-          path="/electricity"
-          element={<ElectricityPurchase />}
-        />
+          <Route
+            path="/buy-cable-tv"
+            element={<CableTvPurchase />}
+          />
 
+          <Route
+            path="/tv"
+            element={<CableTvPurchase />}
+          />
 
-        {/* =========================
-            CABLE TV
-        ========================== */}
+          <Route
+            path="/transactions"
+            element={<TransactionHistory />}
+          />
 
-        <Route
-          path="/buy-cable-tv"
-          element={<CableTvPurchase />}
-        />
-
-        <Route
-          path="/tv"
-          element={<CableTvPurchase />}
-        />
-
-
-        {/* =========================
-            TRANSACTIONS
-        ========================== */}
-
-        <Route
-          path="/transactions"
-          element={<TransactionHistory />}
-        />
+        </Route>
 
 
         {/* =========================

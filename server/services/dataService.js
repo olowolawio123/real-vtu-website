@@ -34,6 +34,11 @@ async function getDataPlans() {
     }
   );
 
+  console.log(
+    "VTU DATA PLANS RESPONSE:",
+    JSON.stringify(response.data, null, 2)
+  );
+
   return response.data;
 }
 

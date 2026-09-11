@@ -41,6 +41,13 @@ const ElectricityPurchase = () => {
   const [purchaseResult, setPurchaseResult] =
     useState(null);
 
+  // Transaction PIN
+  const [showPinModal, setShowPinModal] =
+    useState(false);
+
+  const [transactionPin, setTransactionPin] =
+    useState("");
+
   const apiUrl =
     process.env.REACT_APP_API_URL ||
     "http://localhost:5000";
@@ -496,7 +503,7 @@ const ElectricityPurchase = () => {
   };
 
   /*
-   * PURCHASE ELECTRICITY
+   * OPEN TRANSACTION PIN
    */
   const handlePurchase = async () => {
     try {
@@ -566,100 +573,171 @@ const ElectricityPurchase = () => {
         return;
       }
 
-      setPurchasing(true);
-      setPurchaseResult(null);
-
-      const token =
-        await user.getIdToken();
-
-      const response =
-        await axios.post(
-          `${apiUrl}/api/vtu/buy-electricity`,
-          {
-            discoName,
-            meterNumber:
-              String(meterNumber),
-            meterType,
-            amount:
-              electricityAmount,
-          },
-          {
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
-          }
-        );
-
-      console.log(
-        "ELECTRICITY PURCHASE RESPONSE:",
-        response.data
-      );
-
-      if (
-        response.data?.success === true
-      ) {
-        setPurchaseResult(
-          response.data
-        );
-
-        toast.success(
-          "Electricity purchase successful."
-        );
-
-        setAmount("");
-      } else if (
-        response.data?.pending
-      ) {
-        toast.info(
-          response.data.message ||
-            "Your electricity purchase is being processed. Please do not purchase again."
-        );
-
-        setPurchaseResult(
-          response.data
-        );
-      } else {
-        toast.error(
-          response.data?.message ||
-            response.data
-              ?.api_response ||
-            "Electricity purchase failed."
-        );
-      }
+      setTransactionPin("");
+      setShowPinModal(true);
     } catch (error) {
       console.error(
-        "Electricity purchase error:",
-        error.response?.data ||
-          error.message
+        "Electricity purchase validation error:",
+        error
       );
-
-      const data =
-        error.response?.data;
-
-      if (data?.pending) {
-        toast.info(
-          data.message ||
-            "Your electricity purchase is still being processed. Please do not purchase again."
-        );
-
-        setPurchaseResult(data);
-      } else {
-        toast.error(
-          data?.message ||
-            data?.api_response ||
-            "Unable to process electricity purchase."
-        );
-      }
-    } finally {
-      setPurchasing(false);
     }
+  };
+
+  /*
+   * ACTUAL ELECTRICITY PURCHASE
+   */
+  const submitElectricityPurchase =
+    async () => {
+      if (!user) {
+        toast.error(
+          "Please log in again."
+        );
+        return;
+      }
+
+      if (
+        !/^\d{4}$/.test(
+          transactionPin
+        )
+      ) {
+        toast.error(
+          "Enter your 4-digit transaction PIN."
+        );
+        return;
+      }
+
+      try {
+        setPurchasing(true);
+        setPurchaseResult(null);
+
+        const token =
+          await user.getIdToken();
+
+        const response =
+          await axios.post(
+            `${apiUrl}/api/vtu/buy-electricity`,
+            {
+              discoName,
+              meterNumber:
+                String(meterNumber),
+              meterType,
+              amount:
+                electricityAmount,
+              transactionPin,
+            },
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            }
+          );
+
+        console.log(
+          "ELECTRICITY PURCHASE RESPONSE:",
+          response.data
+        );
+
+        if (
+          response.data?.success === true
+        ) {
+          setPurchaseResult(
+            response.data
+          );
+
+          toast.success(
+            "Electricity purchase successful."
+          );
+
+          setAmount("");
+          setShowPinModal(false);
+          setTransactionPin("");
+        } else if (
+          response.data?.pending
+        ) {
+          toast.info(
+            response.data.message ||
+              "Your electricity purchase is being processed. Please do not purchase again."
+          );
+
+          setPurchaseResult(
+            response.data
+          );
+
+          setShowPinModal(false);
+          setTransactionPin("");
+        } else {
+          toast.error(
+            response.data?.message ||
+              response.data?.api_response ||
+              "Electricity purchase failed."
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Electricity purchase error:",
+          error.response?.data ||
+            error.message
+        );
+
+        const data =
+          error.response?.data;
+
+        /*
+         * Wrong PIN
+         * Keep popup open so user can retry.
+         */
+        if (
+          error.response?.status === 401
+        ) {
+          toast.error(
+            data?.message ||
+              "Incorrect transaction PIN."
+          );
+
+          setTransactionPin("");
+          return;
+        }
+
+        if (data?.pending) {
+          toast.info(
+            data.message ||
+              "Your electricity purchase is still being processed. Please do not purchase again."
+          );
+
+          setPurchaseResult(data);
+          setShowPinModal(false);
+          setTransactionPin("");
+        } else {
+          toast.error(
+            data?.message ||
+              data?.api_response ||
+              "Unable to process electricity purchase."
+          );
+
+          setShowPinModal(false);
+          setTransactionPin("");
+        }
+      } finally {
+        setPurchasing(false);
+      }
+    };
+
+  /*
+   * CLOSE PIN MODAL
+   */
+  const closePinModal = () => {
+    if (purchasing) {
+      return;
+    }
+
+    setShowPinModal(false);
+    setTransactionPin("");
   };
 
   const verifiedCustomerName =
     meterDetails?.customerName ||
     meterDetails?.customer_name ||
-    meterDetails?.customerName ||
     meterDetails?.name ||
     "";
 
@@ -739,7 +817,8 @@ const ElectricityPurchase = () => {
               fontSize: "12px",
               opacity: 0.75,
               marginBottom: "5px",
-              textTransform: "uppercase",
+              textTransform:
+                "uppercase",
               letterSpacing: "1px",
             }}
           >
@@ -772,7 +851,11 @@ const ElectricityPurchase = () => {
         >
           {/* PROVIDER */}
 
-          <div style={{ marginBottom: "24px" }}>
+          <div
+            style={{
+              marginBottom: "24px",
+            }}
+          >
             <label
               style={{
                 display: "block",
@@ -852,7 +935,11 @@ const ElectricityPurchase = () => {
 
           {/* METER TYPE */}
 
-          <div style={{ marginBottom: "24px" }}>
+          <div
+            style={{
+              marginBottom: "24px",
+            }}
+          >
             <label
               style={{
                 display: "block",
@@ -886,7 +973,8 @@ const ElectricityPurchase = () => {
                 },
               ].map((item) => {
                 const active =
-                  meterType === item.value;
+                  meterType ===
+                  item.value;
 
                 return (
                   <button
@@ -896,9 +984,18 @@ const ElectricityPurchase = () => {
                       setMeterType(
                         item.value
                       );
-                      setMeterVerified(false);
-                      setMeterDetails(null);
-                      setPurchaseResult(null);
+
+                      setMeterVerified(
+                        false
+                      );
+
+                      setMeterDetails(
+                        null
+                      );
+
+                      setPurchaseResult(
+                        null
+                      );
                     }}
                     style={{
                       padding: "15px",
@@ -935,7 +1032,11 @@ const ElectricityPurchase = () => {
 
           {/* METER NUMBER */}
 
-          <div style={{ marginBottom: "15px" }}>
+          <div
+            style={{
+              marginBottom: "15px",
+            }}
+          >
             <label
               style={{
                 display: "block",
@@ -988,7 +1089,8 @@ const ElectricityPurchase = () => {
               width: "100%",
               height: "50px",
               borderRadius: "14px",
-              border: "1px solid #2563eb",
+              border:
+                "1px solid #2563eb",
               background:
                 verifyingMeter ||
                 !discoName ||
@@ -1106,7 +1208,11 @@ const ElectricityPurchase = () => {
 
           {/* AMOUNT */}
 
-          <div style={{ marginBottom: "18px" }}>
+          <div
+            style={{
+              marginBottom: "18px",
+            }}
+          >
             <label
               style={{
                 display: "block",
@@ -1151,7 +1257,8 @@ const ElectricityPurchase = () => {
                 step="1"
                 style={{
                   width: "100%",
-                  boxSizing: "border-box",
+                  boxSizing:
+                    "border-box",
                   height: "55px",
                   borderRadius: "14px",
                   border:
@@ -1584,7 +1691,7 @@ const ElectricityPurchase = () => {
             {
               icon: "🔒",
               title: "Secure",
-              text: "Protected payments",
+              text: "PIN protected payments",
             },
             {
               icon: "✓",
@@ -1648,6 +1755,216 @@ const ElectricityPurchase = () => {
           Meter: 1111111111111
         </div>
       </div>
+
+      {/* TRANSACTION PIN MODAL */}
+
+      {showPinModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background:
+              "rgba(15, 23, 42, 0.60)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            zIndex: 9999,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "390px",
+              background: "#ffffff",
+              borderRadius: "24px",
+              padding: "28px",
+              boxShadow:
+                "0 25px 70px rgba(15, 23, 42, 0.25)",
+            }}
+          >
+            <div
+              style={{
+                textAlign: "center",
+                marginBottom: "22px",
+              }}
+            >
+              <div
+                style={{
+                  width: "60px",
+                  height: "60px",
+                  borderRadius: "50%",
+                  background: "#eff6ff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin:
+                    "0 auto 14px",
+                  fontSize: "26px",
+                }}
+              >
+                🔐
+              </div>
+
+              <h3
+                style={{
+                  margin: 0,
+                  color: "#0f172a",
+                  fontSize: "22px",
+                  fontWeight: "800",
+                }}
+              >
+                Enter Transaction PIN
+              </h3>
+
+              <p
+                style={{
+                  margin:
+                    "8px 0 0",
+                  color: "#64748b",
+                  fontSize: "13px",
+                  lineHeight: "1.5",
+                }}
+              >
+                Enter your 4-digit PIN
+                to authorize this
+                electricity payment.
+              </p>
+            </div>
+
+            <div
+              style={{
+                background: "#f8fafc",
+                borderRadius: "14px",
+                padding: "12px",
+                marginBottom: "15px",
+                textAlign: "center",
+                color: "#475569",
+                fontSize: "13px",
+              }}
+            >
+              Pay ₦
+              {sellingPrice.toLocaleString()}
+            </div>
+
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              autoFocus
+              value={transactionPin}
+              onChange={(e) =>
+                setTransactionPin(
+                  e.target.value.replace(
+                    /\D/g,
+                    ""
+                  )
+                )
+              }
+              onKeyDown={(e) => {
+                if (
+                  e.key === "Enter" &&
+                  transactionPin.length ===
+                    4 &&
+                  !purchasing
+                ) {
+                  submitElectricityPurchase();
+                }
+              }}
+              placeholder="••••"
+              style={{
+                width: "100%",
+                height: "58px",
+                boxSizing:
+                  "border-box",
+                borderRadius: "14px",
+                border:
+                  "1px solid #dbe3ef",
+                background: "#f8fafc",
+                textAlign: "center",
+                fontSize: "25px",
+                letterSpacing: "10px",
+                outline: "none",
+                color: "#0f172a",
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={
+                submitElectricityPurchase
+              }
+              disabled={
+                purchasing ||
+                transactionPin.length !==
+                  4
+              }
+              style={{
+                width: "100%",
+                height: "52px",
+                marginTop: "16px",
+                border: "none",
+                borderRadius: "14px",
+                background:
+                  purchasing ||
+                  transactionPin.length !==
+                    4
+                    ? "#cbd5e1"
+                    : "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                color: "#ffffff",
+                fontSize: "15px",
+                fontWeight: "800",
+                cursor:
+                  purchasing ||
+                  transactionPin.length !==
+                    4
+                    ? "not-allowed"
+                    : "pointer",
+              }}
+            >
+              {purchasing
+                ? "Processing..."
+                : "Confirm Payment"}
+            </button>
+
+            <button
+              type="button"
+              onClick={
+                closePinModal
+              }
+              disabled={purchasing}
+              style={{
+                width: "100%",
+                height: "48px",
+                marginTop: "10px",
+                border: "none",
+                background:
+                  "transparent",
+                color: "#64748b",
+                fontSize: "14px",
+                fontWeight: "700",
+                cursor: purchasing
+                  ? "not-allowed"
+                  : "pointer",
+              }}
+            >
+              Cancel
+            </button>
+
+            <div
+              style={{
+                textAlign: "center",
+                marginTop: "10px",
+                color: "#94a3b8",
+                fontSize: "11px",
+              }}
+            >
+              🔒 Secure Transaction PIN
+              verification
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

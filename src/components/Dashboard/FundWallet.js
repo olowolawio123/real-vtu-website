@@ -110,7 +110,6 @@ const FundWallet = () => {
     email:
       user?.email || "",
 
-    // Paystack uses kobo
     amount:
       Number(amount) * 100,
 
@@ -118,7 +117,6 @@ const FundWallet = () => {
 
     currency: "NGN",
 
-    // Connect payment to Firebase user
     metadata: {
       uid:
         user?.uid || "",
@@ -155,18 +153,35 @@ const FundWallet = () => {
   // =====================================================
 
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
+    <div
+      style={styles.page}
+      className="fund-wallet-page"
+    >
 
-        {/* HEADER */}
+      <div
+        style={styles.container}
+        className="fund-wallet-container"
+      >
 
-        <div style={styles.header}>
-          <div>
+        {/* =================================================
+            HEADER
+        ================================================= */}
+
+        <div
+          style={styles.header}
+          className="fund-wallet-header"
+        >
+
+          <div className="fund-wallet-heading">
+
             <div style={styles.brandBadge}>
               INSTANT LOAD
             </div>
 
-            <h1 style={styles.title}>
+            <h1
+              style={styles.title}
+              className="fund-wallet-title"
+            >
               Fund Wallet
             </h1>
 
@@ -174,34 +189,61 @@ const FundWallet = () => {
               Add money to your wallet and
               enjoy instant VTU services.
             </p>
+
           </div>
 
-          <div style={styles.securityBadge}>
-            <span style={styles.lockIcon}>
+
+          <div
+            style={styles.securityBadge}
+            className="fund-wallet-security"
+          >
+
+            <div style={styles.lockIcon}>
               🔒
-            </span>
+            </div>
 
             <div>
-              <strong style={styles.securityTitle}>
+
+              <strong
+                style={styles.securityTitle}
+              >
                 Secure Payment
               </strong>
 
-              <span style={styles.securityText}>
+              <span
+                style={styles.securityText}
+              >
                 Powered by Paystack
               </span>
+
             </div>
+
           </div>
+
         </div>
 
-        {/* MAIN CARD */}
 
-        <div style={styles.card}>
+        {/* =================================================
+            MAIN CARD
+        ================================================= */}
+
+        <div
+          style={styles.card}
+          className="fund-wallet-card"
+        >
 
           {/* WALLET HERO */}
 
-          <div style={styles.walletHero}>
-            <div>
-              <span style={styles.walletLabel}>
+          <div
+            style={styles.walletHero}
+            className="fund-wallet-hero"
+          >
+
+            <div className="fund-wallet-hero-content">
+
+              <span
+                style={styles.walletLabel}
+              >
                 WALLET FUNDING
               </span>
 
@@ -214,21 +256,35 @@ const FundWallet = () => {
                 continue with your secure
                 payment.
               </p>
+
             </div>
 
-            <div style={styles.walletIconLarge}>
+
+            <div
+              style={styles.walletIconLarge}
+              className="fund-wallet-hero-icon"
+            >
               ₦
             </div>
+
           </div>
 
-          {/* AMOUNT */}
+
+          {/* =================================================
+              AMOUNT
+          ================================================= */}
 
           <div style={styles.section}>
+
             <label style={styles.label}>
               Amount to fund
             </label>
 
-            <div style={styles.amountWrapper}>
+            <div
+              style={styles.amountWrapper}
+              className="fund-wallet-amount-wrapper"
+            >
+
               <span style={styles.currency}>
                 ₦
               </span>
@@ -246,23 +302,34 @@ const FundWallet = () => {
                 }
                 style={styles.amountInput}
               />
+
             </div>
 
             <p style={styles.amountHint}>
               Minimum funding amount: ₦1
             </p>
+
           </div>
 
-          {/* QUICK AMOUNTS */}
+
+          {/* =================================================
+              QUICK AMOUNTS
+          ================================================= */}
 
           <div style={styles.section}>
+
             <label style={styles.label}>
               Quick amount
             </label>
 
-            <div style={styles.quickGrid}>
+            <div
+              style={styles.quickGrid}
+              className="fund-wallet-quick-grid"
+            >
+
               {quickAmounts.map(
                 (quickAmount) => {
+
                   const active =
                     numericAmount ===
                     quickAmount;
@@ -291,13 +358,20 @@ const FundWallet = () => {
                   );
                 }
               )}
+
             </div>
+
           </div>
 
-          {/* PAYMENT SUMMARY */}
+
+          {/* =================================================
+              PAYMENT SUMMARY
+          ================================================= */}
 
           <div style={styles.summary}>
+
             <div style={styles.summaryRow}>
+
               <span>
                 Funding amount
               </span>
@@ -314,9 +388,12 @@ const FundWallet = () => {
                     )
                   : "0.00"}
               </strong>
+
             </div>
 
+
             <div style={styles.summaryRow}>
+
               <span>
                 Payment fee
               </span>
@@ -324,11 +401,17 @@ const FundWallet = () => {
               <strong>
                 ₦0.00
               </strong>
+
             </div>
 
-            <div style={styles.summaryDivider} />
+
+            <div
+              style={styles.summaryDivider}
+            />
+
 
             <div style={styles.totalRow}>
+
               <span>
                 Total
               </span>
@@ -345,22 +428,31 @@ const FundWallet = () => {
                     )
                   : "0.00"}
               </strong>
+
             </div>
+
           </div>
 
-          {/* PAY BUTTON */}
+
+          {/* =================================================
+              PAY BUTTON
+          ================================================= */}
 
           <div style={styles.paymentArea}>
+
             {numericAmount > 0 &&
             user &&
             publicKey ? (
+
               <PaystackButton
                 {...config}
                 className="instant-load-paystack-button"
                 text={`Fund Wallet — ₦${numericAmount.toLocaleString()}`}
                 style={styles.paystackButton}
               />
+
             ) : (
+
               <button
                 type="button"
                 disabled
@@ -374,13 +466,19 @@ const FundWallet = () => {
                   ? "Please Log In"
                   : "Payment Unavailable"}
               </button>
+
             )}
+
           </div>
 
-          {/* LOGIN WARNING */}
+
+          {/* =================================================
+              LOGIN WARNING
+          ================================================= */}
 
           {!user && (
             <div style={styles.warning}>
+
               <span>
                 ⚠️
               </span>
@@ -389,13 +487,18 @@ const FundWallet = () => {
                 Please log in to fund your
                 wallet.
               </span>
+
             </div>
           )}
 
-          {/* PUBLIC KEY WARNING */}
+
+          {/* =================================================
+              PUBLIC KEY WARNING
+          ================================================= */}
 
           {!publicKey && (
             <div style={styles.warning}>
+
               <span>
                 ⚠️
               </span>
@@ -404,20 +507,33 @@ const FundWallet = () => {
                 Paystack public key is not
                 configured.
               </span>
+
             </div>
           )}
+
         </div>
 
-        {/* TRUST SECTION */}
 
-        <div style={styles.trustCard}>
+        {/* =================================================
+            TRUST SECTION
+        ================================================= */}
+
+        <div
+          style={styles.trustCard}
+          className="fund-wallet-trust-card"
+        >
+
           <div style={styles.trustHeader}>
+
             <div style={styles.trustIcon}>
               🛡️
             </div>
 
             <div>
-              <strong style={styles.trustTitle}>
+
+              <strong
+                style={styles.trustTitle}
+              >
                 Safe & Secure Funding
               </strong>
 
@@ -425,19 +541,27 @@ const FundWallet = () => {
                 Your payment is securely
                 processed through Paystack.
               </p>
+
             </div>
+
           </div>
 
-          <div style={styles.trustGrid}>
+
+          <div
+            style={styles.trustGrid}
+            className="fund-wallet-trust-grid"
+          >
 
             <div style={styles.trustItem}>
+
               <span
                 style={styles.trustItemIcon}
               >
                 🔒
               </span>
 
-              <div>
+              <div className="fund-wallet-trust-content">
+
                 <strong>
                   Secure
                 </strong>
@@ -445,17 +569,22 @@ const FundWallet = () => {
                 <span>
                   Protected payment
                 </span>
+
               </div>
+
             </div>
 
+
             <div style={styles.trustItem}>
+
               <span
                 style={styles.trustItemIcon}
               >
                 ⚡
               </span>
 
-              <div>
+              <div className="fund-wallet-trust-content">
+
                 <strong>
                   Fast
                 </strong>
@@ -463,17 +592,22 @@ const FundWallet = () => {
                 <span>
                   Instant wallet credit
                 </span>
+
               </div>
+
             </div>
 
+
             <div style={styles.trustItem}>
+
               <span
                 style={styles.trustItemIcon}
               >
                 ✓
               </span>
 
-              <div>
+              <div className="fund-wallet-trust-content">
+
                 <strong>
                   Reliable
                 </strong>
@@ -481,15 +615,22 @@ const FundWallet = () => {
                 <span>
                   Payment verification
                 </span>
+
               </div>
+
             </div>
 
           </div>
+
         </div>
 
-        {/* HELP */}
+
+        {/* =================================================
+            HELP
+        ================================================= */}
 
         <div style={styles.help}>
+
           <strong>
             Need help?
           </strong>
@@ -499,12 +640,308 @@ const FundWallet = () => {
             if your wallet does not update
             after payment.
           </span>
+
         </div>
 
       </div>
+
+
+      {/* =================================================
+          RESPONSIVE CSS
+          Kept inside this component intentionally
+      ================================================= */}
+
+      <style>{`
+
+        * {
+          box-sizing: border-box;
+        }
+
+        html,
+        body,
+        #root {
+          width: 100%;
+          max-width: 100%;
+          overflow-x: hidden;
+        }
+
+        .fund-wallet-page {
+          width: 100%;
+          max-width: 100%;
+          overflow-x: hidden;
+        }
+
+        .fund-wallet-container {
+          width: 100%;
+          max-width: 850px;
+        }
+
+        .instant-load-paystack-button {
+          display: block;
+          width: 100%;
+        }
+
+
+        /* =========================================
+           TABLET
+        ========================================= */
+
+        @media (max-width: 768px) {
+
+          .fund-wallet-page {
+            padding:
+              20px
+              12px
+              110px
+              12px !important;
+          }
+
+
+          .fund-wallet-header {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 15px !important;
+            margin-bottom: 20px !important;
+          }
+
+
+          .fund-wallet-heading {
+            width: 100%;
+            min-width: 0;
+          }
+
+
+          .fund-wallet-title {
+            font-size: 28px !important;
+            line-height: 1.15 !important;
+          }
+
+
+          .fund-wallet-security {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+
+
+          .fund-wallet-card {
+            width: 100% !important;
+            padding: 18px !important;
+            border-radius: 20px !important;
+          }
+
+
+          .fund-wallet-hero {
+            width: 100% !important;
+            padding: 18px !important;
+            border-radius: 17px !important;
+            gap: 12px !important;
+          }
+
+
+          .fund-wallet-hero-content {
+            min-width: 0;
+            flex: 1;
+          }
+
+
+          .fund-wallet-hero h2 {
+            font-size: 19px !important;
+            line-height: 1.25 !important;
+          }
+
+
+          .fund-wallet-hero p {
+            font-size: 12px !important;
+          }
+
+
+          .fund-wallet-hero-icon {
+            width: 52px !important;
+            height: 52px !important;
+            min-width: 52px !important;
+            border-radius: 16px !important;
+            font-size: 23px !important;
+          }
+
+
+          .fund-wallet-quick-grid {
+            grid-template-columns:
+              repeat(2, minmax(0, 1fr)) !important;
+          }
+
+
+          .fund-wallet-trust-grid {
+            grid-template-columns:
+              1fr !important;
+            gap: 13px !important;
+          }
+
+
+          .fund-wallet-trust-card {
+            padding: 18px !important;
+          }
+
+
+          .fund-wallet-trust-content {
+            min-width: 0;
+          }
+
+
+          .fund-wallet-trust-content strong,
+          .fund-wallet-trust-content span {
+            display: block;
+          }
+
+        }
+
+
+        /* =========================================
+           SMALL PHONES
+        ========================================= */
+
+        @media (max-width: 480px) {
+
+          .fund-wallet-page {
+            padding:
+              16px
+              8px
+              110px
+              8px !important;
+          }
+
+
+          .fund-wallet-card {
+            padding: 14px !important;
+            border-radius: 18px !important;
+          }
+
+
+          .fund-wallet-title {
+            font-size: 25px !important;
+          }
+
+
+          .fund-wallet-security {
+            padding: 10px 12px !important;
+          }
+
+
+          .fund-wallet-hero {
+            padding: 15px !important;
+          }
+
+
+          .fund-wallet-hero h2 {
+            font-size: 17px !important;
+          }
+
+
+          .fund-wallet-hero p {
+            font-size: 11px !important;
+          }
+
+
+          .fund-wallet-hero-icon {
+            width: 46px !important;
+            height: 46px !important;
+            min-width: 46px !important;
+            font-size: 20px !important;
+          }
+
+
+          .fund-wallet-amount-wrapper {
+            padding-left: 12px !important;
+            padding-right: 8px !important;
+          }
+
+
+          .fund-wallet-quick-grid {
+            gap: 7px !important;
+          }
+
+
+          .fund-wallet-quick-grid button {
+            padding:
+              11px
+              6px !important;
+            font-size: 13px !important;
+          }
+
+
+          .fund-wallet-trust-card {
+            padding: 15px !important;
+          }
+
+
+          .fund-wallet-trust-grid {
+            gap: 11px !important;
+          }
+
+
+          .fund-wallet-help {
+            padding: 0 8px;
+          }
+
+        }
+
+
+        /* =========================================
+           VERY SMALL PHONES
+        ========================================= */
+
+        @media (max-width: 360px) {
+
+          .fund-wallet-page {
+            padding-left: 6px !important;
+            padding-right: 6px !important;
+          }
+
+
+          .fund-wallet-card {
+            padding: 12px !important;
+          }
+
+
+          .fund-wallet-hero {
+            padding: 13px !important;
+          }
+
+
+          .fund-wallet-title {
+            font-size: 23px !important;
+          }
+
+
+          .fund-wallet-hero h2 {
+            font-size: 16px !important;
+          }
+
+
+          .fund-wallet-quick-grid {
+            gap: 5px !important;
+          }
+
+        }
+
+
+        /* =========================================
+           DESKTOP
+        ========================================= */
+
+        @media (min-width: 769px) {
+
+          .fund-wallet-page {
+            overflow-x: hidden;
+          }
+
+        }
+
+      `}</style>
+
     </div>
   );
 };
+
 
 // =====================================================
 // STYLES
@@ -512,37 +949,40 @@ const FundWallet = () => {
 
 const styles = {
   page: {
+    width: "100%",
     minHeight: "100vh",
     background:
       "linear-gradient(135deg, #f5f8ff 0%, #eef3ff 100%)",
-    padding:
-      "35px 20px 60px",
+    padding: "35px 20px 100px",
     boxSizing: "border-box",
     fontFamily:
       "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    overflowX: "hidden",
   },
 
   container: {
+    width: "100%",
     maxWidth: "850px",
     margin: "0 auto",
+    boxSizing: "border-box",
   },
 
   header: {
     display: "flex",
-    justifyContent:
-      "space-between",
+    justifyContent: "space-between",
     alignItems: "center",
     gap: "25px",
     marginBottom: "28px",
     flexWrap: "wrap",
+    width: "100%",
+    boxSizing: "border-box",
   },
 
   brandBadge: {
     display: "inline-block",
     background: "#dbeafe",
     color: "#1d4ed8",
-    padding:
-      "6px 11px",
+    padding: "6px 11px",
     borderRadius: "20px",
     fontSize: "11px",
     fontWeight: 800,
@@ -559,10 +999,10 @@ const styles = {
   },
 
   subtitle: {
-    margin:
-      "7px 0 0",
+    margin: "7px 0 0",
     color: "#6b7280",
     fontSize: "15px",
+    lineHeight: 1.5,
   },
 
   securityBadge: {
@@ -570,18 +1010,20 @@ const styles = {
     alignItems: "center",
     gap: "10px",
     background: "#fff",
-    border:
-      "1px solid #e5e7eb",
+    border: "1px solid #e5e7eb",
     borderRadius: "15px",
-    padding:
-      "12px 16px",
+    padding: "12px 16px",
     boxShadow:
       "0 8px 25px rgba(15,23,42,0.05)",
+    flexShrink: 1,
+    maxWidth: "100%",
+    boxSizing: "border-box",
   },
 
   lockIcon: {
     width: "38px",
     height: "38px",
+    minWidth: "38px",
     borderRadius: "11px",
     background: "#ecfdf5",
     display: "flex",
@@ -604,27 +1046,30 @@ const styles = {
   },
 
   card: {
+    width: "100%",
     background: "#fff",
     borderRadius: "24px",
     padding: "30px",
     boxShadow:
       "0 15px 50px rgba(15,23,42,0.08)",
+    boxSizing: "border-box",
+    overflow: "hidden",
   },
 
   walletHero: {
     display: "flex",
-    justifyContent:
-      "space-between",
+    justifyContent: "space-between",
     alignItems: "center",
     gap: "20px",
     background:
       "linear-gradient(135deg, #111827, #1e3a8a)",
     color: "#fff",
     borderRadius: "19px",
-    padding:
-      "24px",
+    padding: "24px",
     marginBottom: "28px",
     overflow: "hidden",
+    boxSizing: "border-box",
+    width: "100%",
   },
 
   walletLabel: {
@@ -640,19 +1085,21 @@ const styles = {
     margin: 0,
     fontSize: "22px",
     fontWeight: 800,
+    lineHeight: 1.25,
   },
 
   walletText: {
-    margin:
-      "7px 0 0",
+    margin: "7px 0 0",
     color: "#cbd5e1",
     fontSize: "13px",
+    lineHeight: 1.5,
     maxWidth: "500px",
   },
 
   walletIconLarge: {
     width: "65px",
     height: "65px",
+    minWidth: "65px",
     flexShrink: 0,
     borderRadius: "20px",
     background:
@@ -666,6 +1113,8 @@ const styles = {
 
   section: {
     marginBottom: "25px",
+    width: "100%",
+    boxSizing: "border-box",
   },
 
   label: {
@@ -679,35 +1128,37 @@ const styles = {
   amountWrapper: {
     display: "flex",
     alignItems: "center",
-    border:
-      "2px solid #dbeafe",
+    width: "100%",
+    border: "2px solid #dbeafe",
     borderRadius: "15px",
     background: "#f8fbff",
-    padding:
-      "0 16px",
+    padding: "0 16px",
+    boxSizing: "border-box",
+    overflow: "hidden",
   },
 
   currency: {
     color: "#2563eb",
     fontSize: "24px",
     fontWeight: 800,
+    flexShrink: 0,
   },
 
   amountInput: {
     width: "100%",
+    minWidth: 0,
     border: "none",
     outline: "none",
     background: "transparent",
-    padding:
-      "17px 10px",
+    padding: "17px 10px",
     fontSize: "25px",
     fontWeight: 800,
     color: "#111827",
+    boxSizing: "border-box",
   },
 
   amountHint: {
-    margin:
-      "7px 0 0",
+    margin: "7px 0 0",
     color: "#9ca3af",
     fontSize: "12px",
   },
@@ -715,21 +1166,24 @@ const styles = {
   quickGrid: {
     display: "grid",
     gridTemplateColumns:
-      "repeat(3, 1fr)",
+      "repeat(3, minmax(0, 1fr))",
     gap: "10px",
+    width: "100%",
   },
 
   quickButton: {
-    border:
-      "1px solid #e5e7eb",
+    width: "100%",
+    minWidth: 0,
+    border: "1px solid #e5e7eb",
     background: "#fff",
     color: "#374151",
     borderRadius: "12px",
-    padding:
-      "12px 10px",
+    padding: "12px 8px",
     fontSize: "14px",
     fontWeight: 700,
     cursor: "pointer",
+    boxSizing: "border-box",
+    whiteSpace: "nowrap",
   },
 
   quickButtonActive: {
@@ -740,18 +1194,19 @@ const styles = {
   },
 
   summary: {
+    width: "100%",
     background: "#f8fafc",
     borderRadius: "16px",
-    padding:
-      "18px",
+    padding: "18px",
     marginBottom: "18px",
+    boxSizing: "border-box",
   },
 
   summaryRow: {
     display: "flex",
-    justifyContent:
-      "space-between",
+    justifyContent: "space-between",
     alignItems: "center",
+    gap: "15px",
     color: "#6b7280",
     fontSize: "13px",
     marginBottom: "11px",
@@ -760,15 +1215,14 @@ const styles = {
   summaryDivider: {
     height: "1px",
     background: "#e5e7eb",
-    margin:
-      "14px 0",
+    margin: "14px 0",
   },
 
   totalRow: {
     display: "flex",
-    justifyContent:
-      "space-between",
+    justifyContent: "space-between",
     alignItems: "center",
+    gap: "15px",
     color: "#111827",
     fontSize: "15px",
     fontWeight: 800,
@@ -776,6 +1230,7 @@ const styles = {
 
   paymentArea: {
     width: "100%",
+    boxSizing: "border-box",
   },
 
   paystackButton: {
@@ -791,6 +1246,7 @@ const styles = {
     cursor: "pointer",
     boxShadow:
       "0 10px 25px rgba(37,99,235,0.22)",
+    boxSizing: "border-box",
   },
 
   disabledPayButton: {
@@ -803,6 +1259,7 @@ const styles = {
     fontSize: "15px",
     fontWeight: 800,
     cursor: "not-allowed",
+    boxSizing: "border-box",
   },
 
   warning: {
@@ -815,19 +1272,22 @@ const styles = {
     border:
       "1px solid #fecaca",
     borderRadius: "11px",
-    padding:
-      "11px",
+    padding: "11px",
     marginTop: "12px",
     fontSize: "12px",
+    textAlign: "center",
+    boxSizing: "border-box",
   },
 
   trustCard: {
+    width: "100%",
     background: "#fff",
     borderRadius: "20px",
     padding: "22px",
     marginTop: "24px",
     boxShadow:
       "0 10px 35px rgba(15,23,42,0.06)",
+    boxSizing: "border-box",
   },
 
   trustHeader: {
@@ -840,6 +1300,7 @@ const styles = {
   trustIcon: {
     width: "43px",
     height: "43px",
+    minWidth: "43px",
     borderRadius: "13px",
     background: "#eff6ff",
     display: "flex",
@@ -855,35 +1316,37 @@ const styles = {
   },
 
   trustText: {
-    margin:
-      "4px 0 0",
+    margin: "4px 0 0",
     color: "#9ca3af",
     fontSize: "12px",
+    lineHeight: 1.4,
   },
 
   trustGrid: {
     display: "grid",
     gridTemplateColumns:
-      "repeat(3, 1fr)",
+      "repeat(3, minmax(0, 1fr))",
     gap: "15px",
+    width: "100%",
   },
 
   trustItem: {
     display: "flex",
     alignItems: "center",
     gap: "9px",
+    minWidth: 0,
   },
 
   trustItemIcon: {
     width: "34px",
     height: "34px",
+    minWidth: "34px",
     borderRadius: "10px",
     background: "#f3f4f6",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontSize: "14px",
-    flexShrink: 0,
   },
 
   help: {
@@ -895,6 +1358,9 @@ const styles = {
     marginTop: "20px",
     color: "#9ca3af",
     fontSize: "11px",
+    lineHeight: 1.5,
+    width: "100%",
+    boxSizing: "border-box",
   },
 };
 

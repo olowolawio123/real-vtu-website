@@ -30,6 +30,12 @@ const AirtimePurchase = () => {
   const [loading, setLoading] =
     useState(false);
 
+  const [showPinModal, setShowPinModal] =
+    useState(false);
+
+  const [transactionPin, setTransactionPin] =
+    useState("");
+
   const apiUrl =
     process.env.REACT_APP_API_URL ||
     "http://localhost:5000";
@@ -149,69 +155,99 @@ const AirtimePurchase = () => {
       return;
     }
 
-    try {
-      setLoading(true);
+    setTransactionPin("");
+    setShowPinModal(true);
+  };
 
-      toast.info(
-        "Authenticating airtime purchase..."
-      );
+  const submitAirtimePurchase =
+    async () => {
+      const currentUser =
+        auth.currentUser;
 
-      const idToken =
-        await currentUser.getIdToken();
-
-      const response =
-        await axios.post(
-          `${apiUrl}/api/vtu/buy-airtime`,
-          {
-            network,
-            mobileNumber: phone,
-            amount:
-              airtimeAmount,
-          },
-          {
-            headers: {
-              Authorization:
-                `Bearer ${idToken}`,
-            },
-          }
+      if (!currentUser) {
+        toast.error(
+          "Please log in first."
         );
-
-      console.log(
-        "Airtime purchase response:",
-        response.data
-      );
+        return;
+      }
 
       if (
-        response.data.success
+        !/^\d{4}$/.test(
+          transactionPin
+        )
       ) {
-        toast.success(
-          `₦${airtimeAmount.toLocaleString()} ${network} airtime sent to ${phone}`
-        );
-
-        setAmount("");
-        setPhone("");
-      } else {
         toast.error(
-          response.data.message ||
-            "Airtime purchase failed."
+          "Enter your 4-digit Transaction PIN."
         );
+        return;
       }
-    } catch (error) {
-      console.error(
-        "Airtime purchase error:",
-        error.response?.data ||
-          error.message
-      );
 
-      toast.error(
-        error.response?.data
-          ?.message ||
-          "Unable to process airtime purchase."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        setLoading(true);
+
+        toast.info(
+          "Authenticating airtime purchase..."
+        );
+
+        const idToken =
+          await currentUser.getIdToken();
+
+        const response =
+          await axios.post(
+            `${apiUrl}/api/vtu/buy-airtime`,
+            {
+              network,
+              mobileNumber: phone,
+              amount:
+                Number(amount),
+              transactionPin,
+            },
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${idToken}`,
+              },
+            }
+          );
+
+        console.log(
+          "Airtime purchase response:",
+          response.data
+        );
+
+        if (
+          response.data.success
+        ) {
+          toast.success(
+            `₦${Number(amount).toLocaleString()} ${network} airtime sent to ${phone}`
+          );
+
+          setAmount("");
+          setPhone("");
+          setTransactionPin("");
+          setShowPinModal(false);
+        } else {
+          toast.error(
+            response.data.message ||
+              "Airtime purchase failed."
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Airtime purchase error:",
+          error.response?.data ||
+            error.message
+        );
+
+        toast.error(
+          error.response?.data
+            ?.message ||
+            "Unable to process airtime purchase."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
 
   const airtimeAmount =
     Number(amount) || 0;
@@ -244,7 +280,8 @@ const AirtimePurchase = () => {
       style={{
         minHeight: "100vh",
         background: "#F4F7FB",
-        padding: "30px 20px 50px",
+        padding:
+          "30px 20px 50px",
         fontFamily:
           "'Inter', 'Segoe UI', Arial, sans-serif",
       }}
@@ -259,7 +296,8 @@ const AirtimePurchase = () => {
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
+            justifyContent:
+              "space-between",
             alignItems: "center",
             gap: "15px",
             marginBottom: "25px",
@@ -272,8 +310,10 @@ const AirtimePurchase = () => {
                 color: "#0A6CFF",
                 fontSize: "12px",
                 fontWeight: "800",
-                letterSpacing: "1px",
-                marginBottom: "6px",
+                letterSpacing:
+                  "1px",
+                marginBottom:
+                  "6px",
               }}
             >
               INSTANT LOAD
@@ -292,24 +332,30 @@ const AirtimePurchase = () => {
 
             <p
               style={{
-                margin: "7px 0 0",
+                margin:
+                  "7px 0 0",
                 color: "#718096",
                 fontSize: "13px",
               }}
             >
-              Recharge any Nigerian network instantly.
+              Recharge any Nigerian
+              network instantly.
             </p>
           </div>
 
           {/* Wallet */}
           <div
             style={{
-              background: "#ffffff",
-              border: "1px solid #E5EBF3",
+              background:
+                "#ffffff",
+              border:
+                "1px solid #E5EBF3",
               borderRadius: "14px",
-              padding: "12px 17px",
+              padding:
+                "12px 17px",
               display: "flex",
-              alignItems: "center",
+              alignItems:
+                "center",
               gap: "10px",
               boxShadow:
                 "0 6px 18px rgba(20, 50, 90, 0.06)",
@@ -319,12 +365,16 @@ const AirtimePurchase = () => {
               style={{
                 width: "38px",
                 height: "38px",
-                borderRadius: "11px",
-                background: "#EAF2FF",
+                borderRadius:
+                  "11px",
+                background:
+                  "#EAF2FF",
                 color: "#0A6CFF",
                 display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                alignItems:
+                  "center",
+                justifyContent:
+                  "center",
               }}
             >
               <i className="bi bi-wallet2"></i>
@@ -333,8 +383,10 @@ const AirtimePurchase = () => {
             <div>
               <div
                 style={{
-                  color: "#718096",
-                  fontSize: "11px",
+                  color:
+                    "#718096",
+                  fontSize:
+                    "11px",
                 }}
               >
                 Wallet Balance
@@ -342,11 +394,14 @@ const AirtimePurchase = () => {
 
               <strong
                 style={{
-                  color: "#071A3D",
-                  fontSize: "17px",
+                  color:
+                    "#071A3D",
+                  fontSize:
+                    "17px",
                 }}
               >
-                ₦{walletBalance.toLocaleString()}
+                ₦
+                {walletBalance.toLocaleString()}
               </strong>
             </div>
           </div>
@@ -355,23 +410,35 @@ const AirtimePurchase = () => {
         {/* Main Card */}
         <div
           style={{
-            background: "#ffffff",
-            borderRadius: "22px",
+            background:
+              "#ffffff",
+            borderRadius:
+              "22px",
             padding: "30px",
-            border: "1px solid #E5EBF3",
+            border:
+              "1px solid #E5EBF3",
             boxShadow:
               "0 12px 35px rgba(20, 50, 90, 0.07)",
           }}
         >
           {/* Network */}
-          <div style={{ marginBottom: "25px" }}>
+          <div
+            style={{
+              marginBottom:
+                "25px",
+            }}
+          >
             <label
               style={{
                 display: "block",
-                color: "#344563",
-                fontSize: "13px",
-                fontWeight: "700",
-                marginBottom: "12px",
+                color:
+                  "#344563",
+                fontSize:
+                  "13px",
+                fontWeight:
+                  "700",
+                marginBottom:
+                  "12px",
               }}
             >
               Select Network
@@ -393,32 +460,43 @@ const AirtimePurchase = () => {
 
                   return (
                     <button
-                      key={item.name}
+                      key={
+                        item.name
+                      }
                       type="button"
                       onClick={() =>
                         setNetwork(
                           item.name
                         )
                       }
-                      disabled={loading}
+                      disabled={
+                        loading
+                      }
                       style={{
-                        border: selected
-                          ? "2px solid #0A6CFF"
-                          : "1px solid #DDE5EF",
+                        border:
+                          selected
+                            ? "2px solid #0A6CFF"
+                            : "1px solid #DDE5EF",
                         background:
                           selected
                             ? "#EAF2FF"
                             : "#ffffff",
-                        color: selected
-                          ? "#0A6CFF"
-                          : "#526581",
-                        borderRadius: "13px",
-                        padding: "15px 8px",
-                        cursor: loading
-                          ? "not-allowed"
-                          : "pointer",
-                        fontWeight: "700",
-                        fontSize: "12px",
+                        color:
+                          selected
+                            ? "#0A6CFF"
+                            : "#526581",
+                        borderRadius:
+                          "13px",
+                        padding:
+                          "15px 8px",
+                        cursor:
+                          loading
+                            ? "not-allowed"
+                            : "pointer",
+                        fontWeight:
+                          "700",
+                        fontSize:
+                          "12px",
                       }}
                     >
                       <i
@@ -442,14 +520,23 @@ const AirtimePurchase = () => {
           </div>
 
           {/* Phone */}
-          <div style={{ marginBottom: "22px" }}>
+          <div
+            style={{
+              marginBottom:
+                "22px",
+            }}
+          >
             <label
               style={{
                 display: "block",
-                color: "#344563",
-                fontSize: "13px",
-                fontWeight: "700",
-                marginBottom: "8px",
+                color:
+                  "#344563",
+                fontSize:
+                  "13px",
+                fontWeight:
+                  "700",
+                marginBottom:
+                  "8px",
               }}
             >
               Phone Number
@@ -457,16 +544,19 @@ const AirtimePurchase = () => {
 
             <div
               style={{
-                position: "relative",
+                position:
+                  "relative",
               }}
             >
               <i
                 className="bi bi-telephone"
                 style={{
-                  position: "absolute",
+                  position:
+                    "absolute",
                   left: "15px",
                   top: "15px",
-                  color: "#8A99AD",
+                  color:
+                    "#8A99AD",
                 }}
               ></i>
 
@@ -483,9 +573,12 @@ const AirtimePurchase = () => {
                   )
                 }
                 maxLength="11"
-                disabled={loading}
+                disabled={
+                  loading
+                }
                 style={{
-                  width: "100%",
+                  width:
+                    "100%",
                   boxSizing:
                     "border-box",
                   padding:
@@ -494,9 +587,12 @@ const AirtimePurchase = () => {
                     "1px solid #DDE5EF",
                   borderRadius:
                     "12px",
-                  fontSize: "14px",
-                  outline: "none",
-                  color: "#172B4D",
+                  fontSize:
+                    "14px",
+                  outline:
+                    "none",
+                  color:
+                    "#172B4D",
                   background:
                     "#ffffff",
                 }}
@@ -505,9 +601,12 @@ const AirtimePurchase = () => {
 
             <div
               style={{
-                marginTop: "7px",
-                color: "#8A99AD",
-                fontSize: "11px",
+                marginTop:
+                  "7px",
+                color:
+                  "#8A99AD",
+                fontSize:
+                  "11px",
               }}
             >
               Sandbox testing uses
@@ -516,14 +615,23 @@ const AirtimePurchase = () => {
           </div>
 
           {/* Amount */}
-          <div style={{ marginBottom: "22px" }}>
+          <div
+            style={{
+              marginBottom:
+                "22px",
+            }}
+          >
             <label
               style={{
                 display: "block",
-                color: "#344563",
-                fontSize: "13px",
-                fontWeight: "700",
-                marginBottom: "8px",
+                color:
+                  "#344563",
+                fontSize:
+                  "13px",
+                fontWeight:
+                  "700",
+                marginBottom:
+                  "8px",
               }}
             >
               Airtime Amount
@@ -531,17 +639,22 @@ const AirtimePurchase = () => {
 
             <div
               style={{
-                position: "relative",
+                position:
+                  "relative",
               }}
             >
               <span
                 style={{
-                  position: "absolute",
+                  position:
+                    "absolute",
                   left: "15px",
                   top: "13px",
-                  color: "#718096",
-                  fontSize: "16px",
-                  fontWeight: "700",
+                  color:
+                    "#718096",
+                  fontSize:
+                    "16px",
+                  fontWeight:
+                    "700",
                 }}
               >
                 ₦
@@ -558,9 +671,12 @@ const AirtimePurchase = () => {
                 }
                 min="1"
                 step="1"
-                disabled={loading}
+                disabled={
+                  loading
+                }
                 style={{
-                  width: "100%",
+                  width:
+                    "100%",
                   boxSizing:
                     "border-box",
                   padding:
@@ -569,9 +685,12 @@ const AirtimePurchase = () => {
                     "1px solid #DDE5EF",
                   borderRadius:
                     "12px",
-                  fontSize: "14px",
-                  outline: "none",
-                  color: "#172B4D",
+                  fontSize:
+                    "14px",
+                  outline:
+                    "none",
+                  color:
+                    "#172B4D",
                   background:
                     "#ffffff",
                 }}
@@ -584,31 +703,41 @@ const AirtimePurchase = () => {
             <div
               style={{
                 background:
-                  remainingBalance >= 0
+                  remainingBalance >=
+                  0
                     ? "#F4F8FF"
                     : "#FFF5F5",
                 border:
-                  remainingBalance >= 0
+                  remainingBalance >=
+                  0
                     ? "1px solid #D9E8FF"
                     : "1px solid #FFD8D8",
-                borderRadius: "16px",
-                padding: "18px",
-                marginBottom: "22px",
+                borderRadius:
+                  "16px",
+                padding:
+                  "18px",
+                marginBottom:
+                  "22px",
               }}
             >
               <div
                 style={{
-                  display: "flex",
+                  display:
+                    "flex",
                   justifyContent:
                     "space-between",
-                  alignItems: "center",
-                  marginBottom: "14px",
+                  alignItems:
+                    "center",
+                  marginBottom:
+                    "14px",
                 }}
               >
                 <strong
                   style={{
-                    color: "#071A3D",
-                    fontSize: "14px",
+                    color:
+                      "#071A3D",
+                    fontSize:
+                      "14px",
                   }}
                 >
                   Purchase Summary
@@ -616,13 +745,18 @@ const AirtimePurchase = () => {
 
                 <span
                   style={{
-                    background: "#EAF2FF",
-                    color: "#0A6CFF",
+                    background:
+                      "#EAF2FF",
+                    color:
+                      "#0A6CFF",
                     padding:
                       "5px 9px",
-                    borderRadius: "8px",
-                    fontSize: "10px",
-                    fontWeight: "800",
+                    borderRadius:
+                      "8px",
+                    fontSize:
+                      "10px",
+                    fontWeight:
+                      "800",
                   }}
                 >
                   {network}
@@ -631,12 +765,16 @@ const AirtimePurchase = () => {
 
               <div
                 style={{
-                  display: "flex",
+                  display:
+                    "flex",
                   justifyContent:
                     "space-between",
-                  color: "#718096",
-                  fontSize: "12px",
-                  marginBottom: "9px",
+                  color:
+                    "#718096",
+                  fontSize:
+                    "12px",
+                  marginBottom:
+                    "9px",
                 }}
               >
                 <span>
@@ -645,21 +783,27 @@ const AirtimePurchase = () => {
 
                 <strong
                   style={{
-                    color: "#172B4D",
+                    color:
+                      "#172B4D",
                   }}
                 >
-                  ₦{airtimeAmount.toLocaleString()}
+                  ₦
+                  {airtimeAmount.toLocaleString()}
                 </strong>
               </div>
 
               <div
                 style={{
-                  display: "flex",
+                  display:
+                    "flex",
                   justifyContent:
                     "space-between",
-                  color: "#718096",
-                  fontSize: "12px",
-                  marginBottom: "9px",
+                  color:
+                    "#718096",
+                  fontSize:
+                    "12px",
+                  marginBottom:
+                    "9px",
                 }}
               >
                 <span>
@@ -668,10 +812,12 @@ const AirtimePurchase = () => {
 
                 <strong
                   style={{
-                    color: "#172B4D",
+                    color:
+                      "#172B4D",
                   }}
                 >
-                  ₦{walletBalance.toLocaleString()}
+                  ₦
+                  {walletBalance.toLocaleString()}
                 </strong>
               </div>
 
@@ -687,15 +833,18 @@ const AirtimePurchase = () => {
 
               <div
                 style={{
-                  display: "flex",
+                  display:
+                    "flex",
                   justifyContent:
                     "space-between",
-                  fontSize: "13px",
+                  fontSize:
+                    "13px",
                 }}
               >
                 <strong
                   style={{
-                    color: "#344563",
+                    color:
+                      "#344563",
                   }}
                 >
                   Balance after purchase
@@ -704,10 +853,12 @@ const AirtimePurchase = () => {
                 <strong
                   style={{
                     color:
-                      remainingBalance >= 0
+                      remainingBalance >=
+                      0
                         ? "#0A6CFF"
                         : "#D64545",
-                    fontSize: "15px",
+                    fontSize:
+                      "15px",
                   }}
                 >
                   ₦
@@ -718,17 +869,23 @@ const AirtimePurchase = () => {
                 </strong>
               </div>
 
-              {remainingBalance < 0 && (
+              {remainingBalance <
+                0 && (
                 <div
                   style={{
-                    marginTop: "12px",
-                    color: "#D64545",
-                    fontSize: "12px",
-                    fontWeight: "700",
+                    marginTop:
+                      "12px",
+                    color:
+                      "#D64545",
+                    fontSize:
+                      "12px",
+                    fontWeight:
+                      "700",
                   }}
                 >
                   <i className="bi bi-exclamation-circle me-1"></i>
-                  Insufficient wallet balance.
+                  Insufficient wallet
+                  balance.
                 </div>
               )}
             </div>
@@ -737,37 +894,48 @@ const AirtimePurchase = () => {
           {/* Purchase Button */}
           <button
             type="button"
-            onClick={handlePurchase}
+            onClick={
+              handlePurchase
+            }
             disabled={
               loading ||
               !phone ||
               !amount ||
-              airtimeAmount <= 0 ||
+              airtimeAmount <=
+                0 ||
               airtimeAmount >
                 walletBalance
             }
             style={{
-              width: "100%",
+              width:
+                "100%",
               border: "none",
-              borderRadius: "13px",
-              padding: "15px",
+              borderRadius:
+                "13px",
+              padding:
+                "15px",
               background:
                 loading ||
                 !phone ||
                 !amount ||
-                airtimeAmount <= 0 ||
+                airtimeAmount <=
+                  0 ||
                 airtimeAmount >
                   walletBalance
                   ? "#B7C5D9"
                   : "linear-gradient(135deg, #0A6CFF, #0062E6)",
-              color: "#ffffff",
-              fontSize: "14px",
-              fontWeight: "800",
+              color:
+                "#ffffff",
+              fontSize:
+                "14px",
+              fontWeight:
+                "800",
               cursor:
                 loading ||
                 !phone ||
                 !amount ||
-                airtimeAmount <= 0 ||
+                airtimeAmount <=
+                  0 ||
                 airtimeAmount >
                   walletBalance
                   ? "not-allowed"
@@ -776,7 +944,8 @@ const AirtimePurchase = () => {
                 loading ||
                 !phone ||
                 !amount ||
-                airtimeAmount <= 0 ||
+                airtimeAmount <=
+                  0 ||
                 airtimeAmount >
                   walletBalance
                   ? "none"
@@ -786,7 +955,8 @@ const AirtimePurchase = () => {
             {loading
               ? "Processing..."
               : `Buy ₦${
-                  airtimeAmount > 0
+                  airtimeAmount >
+                  0
                     ? airtimeAmount.toLocaleString()
                     : "0"
                 } Airtime`}
@@ -795,28 +965,349 @@ const AirtimePurchase = () => {
           {/* Security */}
           <div
             style={{
-              textAlign: "center",
-              marginTop: "16px",
-              color: "#8A99AD",
-              fontSize: "11px",
+              textAlign:
+                "center",
+              marginTop:
+                "16px",
+              color:
+                "#8A99AD",
+              fontSize:
+                "11px",
             }}
           >
             <i className="bi bi-shield-check me-1"></i>
-            Secure wallet-powered purchase
+            Secure wallet-powered
+            purchase
           </div>
 
           <div
             style={{
-              textAlign: "center",
-              marginTop: "5px",
-              color: "#A0AEC0",
-              fontSize: "10px",
+              textAlign:
+                "center",
+              marginTop:
+                "5px",
+              color:
+                "#A0AEC0",
+              fontSize:
+                "10px",
             }}
           >
-            Sandbox mode — wallet deduction is enabled.
+            Sandbox mode — wallet
+            deduction is enabled.
           </div>
         </div>
       </div>
+
+      {/* Transaction PIN Modal */}
+      {showPinModal && (
+        <div
+          style={{
+            position:
+              "fixed",
+            inset: 0,
+            background:
+              "rgba(7, 26, 61, 0.55)",
+            display:
+              "flex",
+            alignItems:
+              "center",
+            justifyContent:
+              "center",
+            padding:
+              "20px",
+            zIndex: 9999,
+          }}
+          onClick={() => {
+            if (!loading) {
+              setShowPinModal(
+                false
+              );
+              setTransactionPin(
+                ""
+              );
+            }
+          }}
+        >
+          <div
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+            style={{
+              width:
+                "100%",
+              maxWidth:
+                "390px",
+              background:
+                "#ffffff",
+              borderRadius:
+                "22px",
+              padding:
+                "28px",
+              boxSizing:
+                "border-box",
+              boxShadow:
+                "0 20px 60px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div
+              style={{
+                width:
+                  "55px",
+                height:
+                  "55px",
+                borderRadius:
+                  "16px",
+                background:
+                  "#EAF2FF",
+                color:
+                  "#0A6CFF",
+                display:
+                  "flex",
+                alignItems:
+                  "center",
+                justifyContent:
+                  "center",
+                margin:
+                  "0 auto 16px",
+                fontSize:
+                  "25px",
+              }}
+            >
+              <i className="bi bi-shield-lock-fill"></i>
+            </div>
+
+            <h2
+              style={{
+                margin:
+                  "0 0 7px",
+                textAlign:
+                  "center",
+                color:
+                  "#071A3D",
+                fontSize:
+                  "21px",
+                fontWeight:
+                  "800",
+              }}
+            >
+              Enter Transaction PIN
+            </h2>
+
+            <p
+              style={{
+                margin:
+                  "0 0 22px",
+                textAlign:
+                  "center",
+                color:
+                  "#718096",
+                fontSize:
+                  "13px",
+                lineHeight:
+                  "1.5",
+              }}
+            >
+              Enter your 4-digit PIN
+              to authorize this
+              airtime purchase.
+            </p>
+
+            <div
+              style={{
+                background:
+                  "#F4F8FF",
+                border:
+                  "1px solid #D9E8FF",
+                borderRadius:
+                  "13px",
+                padding:
+                  "13px",
+                marginBottom:
+                  "20px",
+                textAlign:
+                  "center",
+              }}
+            >
+              <div
+                style={{
+                  color:
+                    "#718096",
+                  fontSize:
+                    "11px",
+                  marginBottom:
+                    "4px",
+                }}
+              >
+                Purchase
+              </div>
+
+              <strong
+                style={{
+                  color:
+                    "#071A3D",
+                  fontSize:
+                    "16px",
+                }}
+              >
+                ₦
+                {airtimeAmount.toLocaleString()}
+                {" "}
+                {network}
+              </strong>
+            </div>
+
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength="4"
+              autoFocus
+              placeholder="••••"
+              value={
+                transactionPin
+              }
+              onChange={(e) =>
+                setTransactionPin(
+                  e.target.value.replace(
+                    /\D/g,
+                    ""
+                  )
+                )
+              }
+              disabled={loading}
+              onKeyDown={(e) => {
+                if (
+                  e.key ===
+                    "Enter" &&
+                  transactionPin.length ===
+                    4 &&
+                  !loading
+                ) {
+                  submitAirtimePurchase();
+                }
+              }}
+              style={{
+                width:
+                  "100%",
+                boxSizing:
+                  "border-box",
+                padding:
+                  "15px",
+                border:
+                  "1px solid #DDE5EF",
+                borderRadius:
+                  "12px",
+                outline:
+                  "none",
+                textAlign:
+                  "center",
+                fontSize:
+                  "25px",
+                letterSpacing:
+                  "9px",
+                color:
+                  "#071A3D",
+                marginBottom:
+                  "17px",
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={
+                submitAirtimePurchase
+              }
+              disabled={
+                loading ||
+                transactionPin.length !==
+                  4
+              }
+              style={{
+                width:
+                  "100%",
+                border:
+                  "none",
+                borderRadius:
+                  "12px",
+                padding:
+                  "14px",
+                background:
+                  loading ||
+                  transactionPin.length !==
+                    4
+                    ? "#B7C5D9"
+                    : "linear-gradient(135deg, #0A6CFF, #0062E6)",
+                color:
+                  "#ffffff",
+                fontWeight:
+                  "800",
+                fontSize:
+                  "14px",
+                cursor:
+                  loading ||
+                  transactionPin.length !==
+                    4
+                    ? "not-allowed"
+                    : "pointer",
+              }}
+            >
+              {loading
+                ? "Processing..."
+                : "Confirm Purchase"}
+            </button>
+
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                setShowPinModal(
+                  false
+                );
+                setTransactionPin(
+                  ""
+                );
+              }}
+              style={{
+                width:
+                  "100%",
+                border:
+                  "none",
+                background:
+                  "transparent",
+                color:
+                  "#718096",
+                padding:
+                  "12px",
+                marginTop:
+                  "5px",
+                fontWeight:
+                  "700",
+                cursor:
+                  loading
+                    ? "not-allowed"
+                    : "pointer",
+              }}
+            >
+              Cancel
+            </button>
+
+            <div
+              style={{
+                textAlign:
+                  "center",
+                color:
+                  "#A0AEC0",
+                fontSize:
+                  "10px",
+                marginTop:
+                  "5px",
+              }}
+            >
+              Your PIN is securely
+              verified by the server.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

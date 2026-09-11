@@ -44,6 +44,12 @@ const CableTvPurchase = () => {
   const [receipt, setReceipt] =
     useState(null);
 
+  const [showPinModal, setShowPinModal] =
+    useState(false);
+
+  const [transactionPin, setTransactionPin] =
+    useState("");
+
   // =====================================================
   // LOAD CABLE TV PLANS
   // =====================================================
@@ -302,6 +308,7 @@ const CableTvPurchase = () => {
             `${API_URL}/api/vtu/verify-cable-customer`,
             {
               cableName,
+
               smartCardNumber:
                 cleanSmartCard,
             },
@@ -364,7 +371,7 @@ const CableTvPurchase = () => {
     };
 
   // =====================================================
-  // PURCHASE
+  // VALIDATE PURCHASE
   // =====================================================
 
   const handlePurchase =
@@ -432,6 +439,40 @@ const CableTvPurchase = () => {
         return;
       }
 
+      setTransactionPin("");
+      setShowPinModal(true);
+    };
+
+  // =====================================================
+  // SUBMIT CABLE PURCHASE WITH PIN
+  // =====================================================
+
+  const submitCablePurchase =
+    async () => {
+      const user =
+        auth.currentUser;
+
+      if (!user) {
+        toast.error(
+          "Please login before continuing"
+        );
+        return;
+      }
+
+      if (!/^\d{4}$/.test(transactionPin)) {
+        toast.error(
+          "Enter your 4-digit transaction PIN"
+        );
+        return;
+      }
+
+      if (!selectedPlan) {
+        toast.error(
+          "Select a Cable TV plan"
+        );
+        return;
+      }
+
       try {
         setPurchasing(true);
 
@@ -448,16 +489,29 @@ const CableTvPurchase = () => {
             ? "3"
             : "4";
 
+        const amount =
+          Number(
+            selectedPlan.price_for_basicuser
+          );
+
+        const cleanSmartCard =
+          smartCardNumber.trim();
+
         const response =
           await axios.post(
             `${API_URL}/api/vtu/buy-cable-tv`,
             {
               cableName,
+
               smartCardNumber:
                 cleanSmartCard,
+
               cablePlan:
                 selectedPlan.cabletv_plan_id,
+
               amount,
+
+              transactionPin,
             },
             {
               headers: {
@@ -513,12 +567,27 @@ const CableTvPurchase = () => {
         );
 
         setCustomer(null);
+        setTransactionPin("");
+        setShowPinModal(false);
       } catch (error) {
         console.error(
           "Cable TV purchase error:",
           error.response?.data ||
             error.message
         );
+
+        if (
+          error.response?.status === 401
+        ) {
+          toast.error(
+            error.response?.data?.message ||
+              "Incorrect transaction PIN"
+          );
+
+          setTransactionPin("");
+
+          return;
+        }
 
         toast.error(
           error.response?.data?.message ||
@@ -612,7 +681,8 @@ const CableTvPurchase = () => {
             </div>
 
             <strong style={styles.walletAmount}>
-              ₦{formatMoney(
+              ₦
+              {formatMoney(
                 walletBalance
               )}
             </strong>
@@ -932,9 +1002,7 @@ const CableTvPurchase = () => {
 
             <div style={styles.sandboxHint}>
               <span>🧪</span>
-
-              Sandbox test number:
-              {" "}
+              Sandbox test number:{" "}
               <strong>
                 1212121212
               </strong>
@@ -1086,16 +1154,14 @@ const CableTvPurchase = () => {
               }
               style={{
                 ...styles.purchaseButton,
-                ...(
-                  purchasing ||
-                  !selectedPlan ||
-                  !customer ||
-                  Number(
-                    selectedPlan?.price_for_basicuser
-                  ) > walletBalance
-                    ? styles.purchaseButtonDisabled
-                    : {}
-                ),
+                ...(purchasing ||
+                !selectedPlan ||
+                !customer ||
+                Number(
+                  selectedPlan?.price_for_basicuser
+                ) > walletBalance
+                  ? styles.purchaseButtonDisabled
+                  : {}),
               }}
             >
               {purchasing ? (
@@ -1301,6 +1367,106 @@ const CableTvPurchase = () => {
               <span>
                 Cable TV subscription receipt
               </span>
+            </div>
+          </div>
+        )}
+
+        {/* PIN MODAL */}
+
+        {showPinModal && (
+          <div style={styles.pinOverlay}>
+            <div style={styles.pinModal}>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!purchasing) {
+                    setShowPinModal(false);
+                    setTransactionPin("");
+                  }
+                }}
+                style={styles.pinClose}
+                disabled={purchasing}
+              >
+                ×
+              </button>
+
+              <div style={styles.pinIcon}>
+                🔐
+              </div>
+
+              <h2 style={styles.pinTitle}>
+                Confirm Subscription
+              </h2>
+
+              <p style={styles.pinText}>
+                Enter your 4-digit transaction PIN
+                to complete this Cable TV subscription.
+              </p>
+
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                autoFocus
+                value={transactionPin}
+                onChange={(event) => {
+                  const value =
+                    event.target.value.replace(
+                      /\D/g,
+                      ""
+                    );
+
+                  setTransactionPin(value);
+                }}
+                placeholder="••••"
+                style={styles.pinInput}
+                disabled={purchasing}
+              />
+
+              <div style={styles.pinAmount}>
+                ₦
+                {formatMoney(
+                  selectedPlan?.price_for_basicuser ||
+                    0
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  submitCablePurchase
+                }
+                disabled={
+                  purchasing ||
+                  transactionPin.length !== 4
+                }
+                style={{
+                  ...styles.pinConfirmButton,
+                  ...(purchasing ||
+                  transactionPin.length !== 4
+                    ? styles.pinConfirmDisabled
+                    : {}),
+                }}
+              >
+                {purchasing ? (
+                  <>
+                    <span
+                      style={
+                        styles.buttonSpinner
+                      }
+                    />
+                    Processing...
+                  </>
+                ) : (
+                  "Confirm & Subscribe"
+                )}
+              </button>
+
+              <p style={styles.pinSecurity}>
+                🔒 Your transaction PIN is securely
+                verified before your wallet is debited.
+              </p>
             </div>
           </div>
         )}
@@ -1923,6 +2089,132 @@ const styles = {
       "1px dashed #d1d5db",
     color: "#9ca3af",
     fontSize: "11px",
+  },
+
+  // =====================================================
+  // TRANSACTION PIN MODAL
+  // =====================================================
+
+  pinOverlay: {
+    position: "fixed",
+    inset: 0,
+    background:
+      "rgba(15, 23, 42, 0.65)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "20px",
+    zIndex: 9999,
+    boxSizing: "border-box",
+  },
+
+  pinModal: {
+    position: "relative",
+    width: "100%",
+    maxWidth: "390px",
+    background: "#fff",
+    borderRadius: "24px",
+    padding:
+      "32px 25px 25px",
+    boxSizing: "border-box",
+    textAlign: "center",
+    boxShadow:
+      "0 25px 80px rgba(15,23,42,0.30)",
+  },
+
+  pinClose: {
+    position: "absolute",
+    top: "14px",
+    right: "14px",
+    width: "34px",
+    height: "34px",
+    border: "none",
+    borderRadius: "50%",
+    background: "#f3f4f6",
+    color: "#4b5563",
+    fontSize: "22px",
+    cursor: "pointer",
+  },
+
+  pinIcon: {
+    width: "58px",
+    height: "58px",
+    borderRadius: "18px",
+    background:
+      "linear-gradient(135deg, #dbeafe, #ede9fe)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    margin: "0 auto 16px",
+    fontSize: "27px",
+  },
+
+  pinTitle: {
+    margin: 0,
+    color: "#111827",
+    fontSize: "22px",
+    fontWeight: 800,
+  },
+
+  pinText: {
+    margin:
+      "8px auto 20px",
+    color: "#6b7280",
+    fontSize: "13px",
+    lineHeight: 1.6,
+    maxWidth: "300px",
+  },
+
+  pinInput: {
+    width: "100%",
+    boxSizing: "border-box",
+    textAlign: "center",
+    letterSpacing: "12px",
+    fontSize: "26px",
+    fontWeight: 800,
+    padding: "14px 12px",
+    border:
+      "2px solid #dbe2ea",
+    borderRadius: "14px",
+    outline: "none",
+    color: "#111827",
+  },
+
+  pinAmount: {
+    margin:
+      "17px 0",
+    fontSize: "22px",
+    fontWeight: 800,
+    color: "#1d4ed8",
+  },
+
+  pinConfirmButton: {
+    width: "100%",
+    border: "none",
+    borderRadius: "14px",
+    padding: "15px",
+    background:
+      "linear-gradient(135deg, #2563eb, #4f46e5)",
+    color: "#fff",
+    fontSize: "15px",
+    fontWeight: 800,
+    cursor: "pointer",
+    boxShadow:
+      "0 10px 25px rgba(37,99,235,0.22)",
+  },
+
+  pinConfirmDisabled: {
+    opacity: 0.55,
+    cursor: "not-allowed",
+    boxShadow: "none",
+  },
+
+  pinSecurity: {
+    margin:
+      "16px 0 0",
+    color: "#9ca3af",
+    fontSize: "11px",
+    lineHeight: 1.5,
   },
 
   trust: {
