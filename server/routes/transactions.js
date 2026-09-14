@@ -51,7 +51,10 @@ function normalizeStatus(status) {
     return "successful";
   }
 
-  if (value === "failed" || value === "fail") {
+  if (
+    value === "failed" ||
+    value === "fail"
+  ) {
     return "failed";
   }
 
@@ -90,1081 +93,1607 @@ function firstValue(object, keys) {
   return null;
 }
 
-router.get("/", requireAuth, async (req, res) => {
+/*
+ * Safely load a Firestore collection.
+ *
+ * If one optional collection fails, transaction history
+ * can still load the other transaction types.
+ */
+async function safeCollectionQuery(
+  db,
+  collectionName,
+  uid
+) {
   try {
-    const uid = req.user.uid;
+    const snapshot = await db
+      .collection(collectionName)
+      .where("uid", "==", uid)
+      .get();
 
-    const db = admin.firestore();
+    return {
+      snapshot,
+      error: null,
+    };
+  } catch (error) {
+    console.error(
+      `Transaction history: unable to read ${collectionName}`,
+      {
+        message: error.message,
+        code: error.code,
+      }
+    );
 
-    const [
-      walletPaymentsSnapshot,
-      walletTransactionsSnapshot,
-      dataOrdersSnapshot,
-      airtimeOrdersSnapshot,
-      electricityOrdersSnapshot,
-    ] = await Promise.all([
-      db
-        .collection("walletPayments")
-        .where("uid", "==", uid)
-        .get(),
+    return {
+      snapshot: null,
+      error,
+    };
+  }
+}
 
-      db
-        .collection("walletTransactions")
-        .where("uid", "==", uid)
-        .get(),
+router.get(
+  "/",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const uid = req.user.uid;
 
-      db
-        .collection("dataOrders")
-        .where("uid", "==", uid)
-        .get(),
+      if (!uid) {
+        return res.status(401).json({
+          success: false,
+          message: "User authentication required.",
+        });
+      }
 
-      db
-        .collection("airtimeOrders")
-        .where("uid", "==", uid)
-        .get(),
+      const db = admin.firestore();
 
-      db
-        .collection("electricityOrders")
-        .where("uid", "==", uid)
-        .get(),
-    ]);
+      /*
+       * LOAD ALL TRANSACTION COLLECTIONS
+       *
+       * Promise.allSettled/safe queries are used so
+       * one missing/problematic collection does not
+       * destroy the entire transaction history.
+       */
 
-    /*
-     * DATA ORDERS
-     */
-
-    const dataOrders = new Map();
-
-    dataOrdersSnapshot.forEach((doc) => {
-      dataOrders.set(doc.id, {
-        id: doc.id,
-        ...doc.data(),
-      });
-    });
-
-    /*
-     * AIRTIME ORDERS
-     */
-
-    const airtimeOrders = new Map();
-
-    airtimeOrdersSnapshot.forEach((doc) => {
-      airtimeOrders.set(doc.id, {
-        id: doc.id,
-        ...doc.data(),
-      });
-    });
-
-    /*
-     * ELECTRICITY ORDERS
-     */
-
-    const electricityOrders = new Map();
-
-    electricityOrdersSnapshot.forEach((doc) => {
-      electricityOrders.set(doc.id, {
-        id: doc.id,
-        ...doc.data(),
-      });
-    });
-
-    const transactions = [];
-
-    /*
-     * WALLET PAYMENTS
-     */
-
-    walletPaymentsSnapshot.forEach((doc) => {
-      const data = doc.data();
-
-      const amount = numberOrZero(data.amount);
-
-      transactions.push({
-        id: `wallet_${doc.id}`,
-
-        category: "wallet",
-
-        type: "credit",
-
-        service: "wallet",
-
-        title: "Wallet Funding",
-
-        description:
-          data.description ||
-          "Wallet funded successfully",
-
-        amount,
-
-        amountSigned: Math.abs(amount),
-
-        status: normalizeStatus(
-          data.status || "success"
+      const [
+        walletPaymentsResult,
+        walletTransactionsResult,
+        dataOrdersResult,
+        airtimeOrdersResult,
+        electricityOrdersResult,
+        cableOrdersResult,
+      ] = await Promise.all([
+        safeCollectionQuery(
+          db,
+          "walletPayments",
+          uid
         ),
 
-        reference:
-          data.reference ||
-          doc.id,
+        safeCollectionQuery(
+          db,
+          "walletTransactions",
+          uid
+        ),
 
-        requestId: null,
+        safeCollectionQuery(
+          db,
+          "dataOrders",
+          uid
+        ),
 
-        orderId: null,
+        safeCollectionQuery(
+          db,
+          "airtimeOrders",
+          uid
+        ),
 
-        network: null,
+        safeCollectionQuery(
+          db,
+          "electricityOrders",
+          uid
+        ),
 
-        mobileNumber: null,
+        safeCollectionQuery(
+          db,
+          "cableOrders",
+          uid
+        ),
+      ]);
 
-        plan: null,
+      const walletPaymentsSnapshot =
+        walletPaymentsResult.snapshot;
 
-        providerReference: null,
+      const walletTransactionsSnapshot =
+        walletTransactionsResult.snapshot;
 
-        electricityProvider: null,
+      const dataOrdersSnapshot =
+        dataOrdersResult.snapshot;
 
-        discoName: null,
+      const airtimeOrdersSnapshot =
+        airtimeOrdersResult.snapshot;
 
-        meterNumber: null,
+      const electricityOrdersSnapshot =
+        electricityOrdersResult.snapshot;
 
-        meterType: null,
+      const cableOrdersSnapshot =
+        cableOrdersResult.snapshot;
 
-        electricityToken: null,
+      const transactions = [];
 
-        createdAt:
-          timestampToISOString(
-            data.createdAt
-          ),
+      /*
+       * CREATE ORDER MAPS
+       */
 
-        details: {
-          paymentReference:
-            data.reference ||
-            doc.id,
-        },
-      });
-    });
+      const dataOrders = new Map();
 
-    /*
-     * WALLET TRANSACTIONS
-     */
+      if (dataOrdersSnapshot) {
+        dataOrdersSnapshot.forEach((doc) => {
+          dataOrders.set(doc.id, {
+            id: doc.id,
+            ...doc.data(),
+          });
+        });
+      }
 
-    walletTransactionsSnapshot.forEach((doc) => {
-      const data = doc.data();
+      const airtimeOrders = new Map();
 
-      const amount = numberOrZero(
-        data.amount
-      );
+      if (airtimeOrdersSnapshot) {
+        airtimeOrdersSnapshot.forEach((doc) => {
+          airtimeOrders.set(doc.id, {
+            id: doc.id,
+            ...doc.data(),
+          });
+        });
+      }
 
-      const transactionType =
-        String(
-          data.type || ""
-        ).toLowerCase();
+      const electricityOrders = new Map();
 
-      const service =
-        String(
-          data.service || ""
-        ).toLowerCase();
+      if (electricityOrdersSnapshot) {
+        electricityOrdersSnapshot.forEach((doc) => {
+          electricityOrders.set(doc.id, {
+            id: doc.id,
+            ...doc.data(),
+          });
+        });
+      }
 
-      const isRefund =
-        transactionType === "refund";
+      const cableOrders = new Map();
 
-      const isDebit =
-        transactionType === "debit";
+      if (cableOrdersSnapshot) {
+        cableOrdersSnapshot.forEach((doc) => {
+          cableOrders.set(doc.id, {
+            id: doc.id,
+            ...doc.data(),
+          });
+        });
+      }
 
-      const isData =
-        service === "data";
+      /*
+       * WALLET PAYMENTS
+       *
+       * This includes Paystack wallet funding.
+       */
 
-      const isAirtime =
-        service === "airtime";
+      if (walletPaymentsSnapshot) {
+        walletPaymentsSnapshot.forEach((doc) => {
+          const data = doc.data();
 
-      const isElectricity =
-        service === "electricity";
-
-      const dataOrder =
-        data.orderId
-          ? dataOrders.get(data.orderId)
-          : null;
-
-      const airtimeOrder =
-        data.orderId
-          ? airtimeOrders.get(
-              data.orderId
-            )
-          : null;
-
-      const electricityOrder =
-        data.orderId
-          ? electricityOrders.get(
-              data.orderId
-            )
-          : null;
-
-      const order =
-        dataOrder ||
-        airtimeOrder ||
-        electricityOrder ||
-        null;
-
-      let status =
-        normalizeStatus(
-          data.status
-        );
-
-      if (order) {
-        const orderStatus =
-          normalizeStatus(
-            order.status
+          const amount = numberOrZero(
+            data.amount
           );
 
-        if (orderStatus) {
-          status = orderStatus;
-        }
-      }
+          transactions.push({
+            id: `wallet_${doc.id}`,
 
-      if (isRefund) {
-        status = "refunded";
-      }
+            category: "wallet",
 
-      /*
-       * TITLE
-       */
+            type: "credit",
 
-      let title =
-        "Wallet Transaction";
+            service: "wallet",
 
-      if (isDebit) {
-        if (isData) {
-          title = "Data Purchase";
-        } else if (isAirtime) {
-          title = "Airtime Purchase";
-        } else if (isElectricity) {
-          title = "Electricity Purchase";
-        } else {
-          title = "Wallet Debit";
-        }
-      }
+            title: "Wallet Funding",
 
-      if (isRefund) {
-        if (isAirtime) {
-          title =
-            "Airtime Purchase Refund";
-        } else if (isData) {
-          title =
-            "Data Purchase Refund";
-        } else if (isElectricity) {
-          title =
-            "Electricity Purchase Refund";
-        } else {
-          title = "Wallet Refund";
-        }
-      }
+            description:
+              data.description ||
+              "Wallet funded successfully",
 
-      /*
-       * DESCRIPTION
-       */
+            amount,
 
-      let description =
-        data.description ||
-        "Wallet transaction";
+            amountSigned:
+              Math.abs(amount),
 
-      if (isData && dataOrder) {
-        description =
-          data.description ||
-          `Data purchase - ${
-            dataOrder.planName ||
-            dataOrder.plan ||
-            dataOrder.size ||
-            "Data"
-          }`;
-      }
-
-      if (isAirtime && airtimeOrder) {
-        description =
-          data.description ||
-          `Airtime purchase - ₦${numberOrZero(
-            airtimeOrder.amount ||
-              data.amount
-          ).toLocaleString()}`;
-      }
-
-      if (
-        isElectricity &&
-        electricityOrder
-      ) {
-        description =
-          data.description ||
-          `Electricity purchase - ${
-            firstValue(
-              electricityOrder,
-              [
-                "discoName",
-                "disco_name",
-                "electricityProvider",
-                "electricity_provider",
-                "providerName",
-                "provider",
-              ]
-            ) ||
-            "Electricity"
-          }`;
-      }
-
-      /*
-       * SIGNED AMOUNT
-       */
-
-      const signedAmount = isRefund
-        ? Math.abs(amount)
-        : isDebit
-        ? -Math.abs(amount)
-        : Math.abs(amount);
-
-      /*
-       * CATEGORY
-       */
-
-      let category = "other";
-
-      if (isData) {
-        category = "data";
-      }
-
-      if (isAirtime) {
-        category = "airtime";
-      }
-
-      if (isElectricity) {
-        category = "electricity";
-      }
-
-      if (isRefund) {
-        if (isAirtime) {
-          category = "airtime";
-        } else if (isData) {
-          category = "data";
-        } else if (isElectricity) {
-          category = "electricity";
-        } else {
-          category = "other";
-        }
-      }
-
-      /*
-       * ELECTRICITY INFORMATION
-       */
-
-      const electricityProvider =
-        firstValue(
-          data,
-          [
-            "electricityProvider",
-            "electricity_provider",
-            "discoName",
-            "disco_name",
-            "providerName",
-            "provider",
-          ]
-        ) ||
-        firstValue(
-          electricityOrder,
-          [
-            "electricityProvider",
-            "electricity_provider",
-            "discoName",
-            "disco_name",
-            "providerName",
-            "provider",
-          ]
-        );
-
-      const meterNumber =
-        firstValue(
-          data,
-          [
-            "meterNumber",
-            "meter_number",
-            "meter",
-          ]
-        ) ||
-        firstValue(
-          electricityOrder,
-          [
-            "meterNumber",
-            "meter_number",
-            "meter",
-          ]
-        );
-
-      const meterType =
-        firstValue(
-          data,
-          [
-            "meterType",
-            "meter_type",
-            "MeterType",
-          ]
-        ) ||
-        firstValue(
-          electricityOrder,
-          [
-            "meterType",
-            "meter_type",
-            "MeterType",
-          ]
-        );
-
-      const electricityToken =
-        firstValue(
-          data,
-          [
-            "electricityToken",
-            "electricity_token",
-            "token",
-            "electricitytoken",
-          ]
-        ) ||
-        firstValue(
-          electricityOrder,
-          [
-            "electricityToken",
-            "electricity_token",
-            "token",
-            "electricitytoken",
-          ]
-        );
-
-      const electricityProviderReference =
-        firstValue(
-          data,
-          [
-            "providerReference",
-            "provider_reference",
-            "providerRef",
-            "reference",
-            "ident",
-          ]
-        ) ||
-        firstValue(
-          electricityOrder,
-          [
-            "providerReference",
-            "provider_reference",
-            "providerRef",
-            "reference",
-            "ident",
-            "id",
-          ]
-        );
-
-      transactions.push({
-        id:
-          `wallet_transaction_${doc.id}`,
-
-        category,
-
-        type:
-          isRefund
-            ? "refund"
-            : isDebit
-            ? "debit"
-            : transactionType ||
-              "transaction",
-
-        service:
-          service ||
-          "other",
-
-        title,
-
-        description,
-
-        amount,
-
-        amountSigned:
-          signedAmount,
-
-        status,
-
-        reference:
-          data.reference ||
-          data.requestId ||
-          doc.id,
-
-        requestId:
-          data.requestId ||
-          order?.requestId ||
-          null,
-
-        orderId:
-          data.orderId ||
-          null,
-
-        network:
-          data.network ||
-          order?.network ||
-          null,
-
-        mobileNumber:
-          data.mobileNumber ||
-          order?.mobileNumber ||
-          null,
-
-        plan:
-          data.planName ||
-          data.plan ||
-          order?.planName ||
-          order?.plan ||
-          order?.size ||
-          null,
-
-        providerReference:
-          data.providerReference ||
-          order?.providerReference ||
-          order?.providerId ||
-          null,
-
-        /*
-         * ELECTRICITY FIELDS
-         */
-
-        electricityProvider:
-          electricityProvider ||
-          null,
-
-        discoName:
-          electricityProvider ||
-          null,
-
-        meterNumber:
-          meterNumber ||
-          null,
-
-        meterType:
-          meterType ||
-          null,
-
-        electricityToken:
-          electricityToken ||
-          null,
-
-        createdAt:
-          timestampToISOString(
-            data.createdAt ||
-              order?.createdAt
-          ),
-
-        details: {
-          balanceBefore:
-            numberOrZero(
-              data.balanceBefore
+            status: normalizeStatus(
+              data.status || "success"
             ),
 
-          balanceAfter:
-            numberOrZero(
-              data.balanceAfter
-            ),
+            reference:
+              data.reference ||
+              doc.id,
 
-          debitStatus:
-            order?.debitStatus ||
-            null,
+            requestId: null,
 
-          providerStatus:
-            order?.status ||
-            null,
+            orderId: null,
 
-          providerReference:
-            electricityProviderReference ||
-            null,
+            network: null,
 
-          electricityProvider:
-            electricityProvider ||
-            null,
+            mobileNumber: null,
 
-          meterNumber:
-            meterNumber ||
-            null,
+            plan: null,
 
-          meterType:
-            meterType ||
-            null,
+            providerReference: null,
 
-          electricityToken:
-            electricityToken ||
-            null,
+            electricityProvider: null,
 
-          airtimeAmount:
-            isAirtime
-              ? numberOrZero(
-                  airtimeOrder?.amount ||
-                    data.amount
+            discoName: null,
+
+            meterNumber: null,
+
+            meterType: null,
+
+            electricityToken: null,
+
+            createdAt:
+              timestampToISOString(
+                data.createdAt
+              ),
+
+            details: {
+              paymentReference:
+                data.reference ||
+                doc.id,
+
+              credited:
+                data.credited !== false,
+            },
+          });
+        });
+      }
+
+      /*
+       * WALLET TRANSACTIONS
+       */
+
+      const walletTransactionOrderIds =
+        new Set();
+
+      if (walletTransactionsSnapshot) {
+        walletTransactionsSnapshot.forEach(
+          (doc) => {
+            const data = doc.data();
+
+            if (data.orderId) {
+              walletTransactionOrderIds.add(
+                data.orderId
+              );
+            }
+
+            const amount =
+              numberOrZero(data.amount);
+
+            const transactionType =
+              String(
+                data.type || ""
+              ).toLowerCase();
+
+            const service =
+              String(
+                data.service || ""
+              ).toLowerCase();
+
+            const isRefund =
+              transactionType ===
+              "refund";
+
+            const isDebit =
+              transactionType ===
+              "debit";
+
+            const isData =
+              service === "data";
+
+            const isAirtime =
+              service === "airtime";
+
+            const isElectricity =
+              service ===
+              "electricity";
+
+            const dataOrder =
+              data.orderId
+                ? dataOrders.get(
+                    data.orderId
+                  )
+                : null;
+
+            const airtimeOrder =
+              data.orderId
+                ? airtimeOrders.get(
+                    data.orderId
+                  )
+                : null;
+
+            const electricityOrder =
+              data.orderId
+                ? electricityOrders.get(
+                    data.orderId
+                  )
+                : null;
+
+            const cableOrder =
+              data.orderId
+                ? cableOrders.get(
+                    data.orderId
+                  )
+                : null;
+
+            const order =
+              dataOrder ||
+              airtimeOrder ||
+              electricityOrder ||
+              cableOrder ||
+              null;
+
+            let status =
+              normalizeStatus(
+                data.status
+              );
+
+            if (order) {
+              const orderStatus =
+                normalizeStatus(
+                  order.status
+                );
+
+              if (
+                orderStatus &&
+                orderStatus !== "unknown"
+              ) {
+                status =
+                  orderStatus;
+              }
+            }
+
+            if (isRefund) {
+              status = "refunded";
+            }
+
+            /*
+             * TITLE
+             */
+
+            let title =
+              "Wallet Transaction";
+
+            if (isDebit) {
+              if (isData) {
+                title =
+                  "Data Purchase";
+              } else if (
+                isAirtime
+              ) {
+                title =
+                  "Airtime Purchase";
+              } else if (
+                isElectricity
+              ) {
+                title =
+                  "Electricity Purchase";
+              } else if (
+                service.includes(
+                  "cable"
                 )
-              : null,
-        },
-      });
-    });
+              ) {
+                title =
+                  "Cable TV Purchase";
+              } else {
+                title =
+                  "Wallet Debit";
+              }
+            }
 
-    /*
-     * ORDER IDS ALREADY REPRESENTED
-     */
+            if (isRefund) {
+              if (isAirtime) {
+                title =
+                  "Airtime Purchase Refund";
+              } else if (isData) {
+                title =
+                  "Data Purchase Refund";
+              } else if (
+                isElectricity
+              ) {
+                title =
+                  "Electricity Purchase Refund";
+              } else {
+                title =
+                  "Wallet Refund";
+              }
+            }
 
-    const walletTransactionOrderIds =
-      new Set();
+            /*
+             * DESCRIPTION
+             */
 
-    walletTransactionsSnapshot.forEach(
-      (doc) => {
-        const data = doc.data();
+            let description =
+              data.description ||
+              "Wallet transaction";
 
-        if (data.orderId) {
-          walletTransactionOrderIds.add(
-            data.orderId
-          );
-        }
-      }
-    );
+            if (isData && dataOrder) {
+              description =
+                data.description ||
+                `Data purchase - ${
+                  dataOrder.planName ||
+                  dataOrder.plan ||
+                  dataOrder.size ||
+                  "Data"
+                }`;
+            }
 
-    /*
-     * DATA ORDERS WITHOUT WALLET TRANSACTION
-     */
+            if (
+              isAirtime &&
+              airtimeOrder
+            ) {
+              description =
+                data.description ||
+                `Airtime purchase - ₦${numberOrZero(
+                  airtimeOrder.amount ||
+                    data.amount
+                ).toLocaleString()}`;
+            }
 
-    dataOrdersSnapshot.forEach((doc) => {
-      const data = doc.data();
+            if (
+              isElectricity &&
+              electricityOrder
+            ) {
+              description =
+                data.description ||
+                `Electricity purchase - ${
+                  firstValue(
+                    electricityOrder,
+                    [
+                      "discoName",
+                      "disco_name",
+                      "electricityProvider",
+                      "electricity_provider",
+                      "providerName",
+                      "provider",
+                    ]
+                  ) ||
+                  "Electricity"
+                }`;
+            }
 
-      if (
-        walletTransactionOrderIds.has(
-          doc.id
-        )
-      ) {
-        return;
-      }
+            /*
+             * SIGNED AMOUNT
+             */
 
-      const amount =
-        numberOrZero(
-          data.sellingPrice ??
-            data.amount ??
-            data.planAmount
-        );
+            const signedAmount =
+              isRefund
+                ? Math.abs(amount)
+                : isDebit
+                ? -Math.abs(amount)
+                : Math.abs(amount);
 
-      transactions.push({
-        id:
-          `data_order_${doc.id}`,
+            /*
+             * CATEGORY
+             */
 
-        category: "data",
+            let category = "other";
 
-        type: "purchase",
+            if (isData) {
+              category = "data";
+            }
 
-        service: "data",
+            if (isAirtime) {
+              category = "airtime";
+            }
 
-        title: "Data Purchase",
+            if (isElectricity) {
+              category =
+                "electricity";
+            }
 
-        description:
-          data.description ||
-          `Data purchase - ${
-            data.planName ||
-            data.plan ||
-            data.size ||
-            "Data"
-          }`,
+            if (
+              service.includes("cable")
+            ) {
+              category =
+                "cabletv";
+            }
 
-        amount,
+            /*
+             * ELECTRICITY
+             */
 
-        amountSigned:
-          -Math.abs(amount),
+            const electricityProvider =
+              firstValue(
+                data,
+                [
+                  "electricityProvider",
+                  "electricity_provider",
+                  "discoName",
+                  "disco_name",
+                  "providerName",
+                  "provider",
+                ]
+              ) ||
+              firstValue(
+                electricityOrder,
+                [
+                  "electricityProvider",
+                  "electricity_provider",
+                  "discoName",
+                  "disco_name",
+                  "providerName",
+                  "provider",
+                ]
+              );
 
-        status:
-          normalizeStatus(
-            data.status
-          ),
+            const meterNumber =
+              firstValue(
+                data,
+                [
+                  "meterNumber",
+                  "meter_number",
+                  "meter",
+                ]
+              ) ||
+              firstValue(
+                electricityOrder,
+                [
+                  "meterNumber",
+                  "meter_number",
+                  "meter",
+                ]
+              );
 
-        reference:
-          data.requestId ||
-          data.orderId ||
-          doc.id,
+            const meterType =
+              firstValue(
+                data,
+                [
+                  "meterType",
+                  "meter_type",
+                  "MeterType",
+                ]
+              ) ||
+              firstValue(
+                electricityOrder,
+                [
+                  "meterType",
+                  "meter_type",
+                  "MeterType",
+                ]
+              );
 
-        requestId:
-          data.requestId ||
-          null,
+            const electricityToken =
+              firstValue(
+                data,
+                [
+                  "electricityToken",
+                  "electricity_token",
+                  "token",
+                  "electricitytoken",
+                ]
+              ) ||
+              firstValue(
+                electricityOrder,
+                [
+                  "electricityToken",
+                  "electricity_token",
+                  "token",
+                  "electricitytoken",
+                ]
+              );
 
-        orderId: doc.id,
+            const electricityProviderReference =
+              firstValue(
+                data,
+                [
+                  "providerReference",
+                  "provider_reference",
+                  "providerRef",
+                  "reference",
+                  "ident",
+                ]
+              ) ||
+              firstValue(
+                electricityOrder,
+                [
+                  "providerReference",
+                  "provider_reference",
+                  "providerRef",
+                  "reference",
+                  "ident",
+                  "id",
+                ]
+              );
 
-        network:
-          data.network ||
-          null,
+            /*
+             * CABLE INFORMATION
+             */
 
-        mobileNumber:
-          data.mobileNumber ||
-          null,
+            const cableProvider =
+              firstValue(
+                data,
+                [
+                  "cableName",
+                  "cable_name",
+                  "cableProvider",
+                  "cable_provider",
+                  "cableTvProvider",
+                  "cable_tv_provider",
+                  "providerName",
+                  "provider",
+                  "the_cabletv_name",
+                ]
+              ) ||
+              firstValue(
+                cableOrder,
+                [
+                  "cableName",
+                  "cable_name",
+                  "cableProvider",
+                  "cable_provider",
+                  "cableTvProvider",
+                  "cable_tv_provider",
+                  "providerName",
+                  "provider",
+                  "the_cabletv_name",
+                ]
+              );
 
-        plan:
-          data.planName ||
-          data.plan ||
-          data.size ||
-          null,
+            const smartCardNumber =
+              firstValue(
+                data,
+                [
+                  "smartCardNumber",
+                  "smart_card_number",
+                  "smartcardNumber",
+                  "smartcard_number",
+                  "iucNumber",
+                  "iuc_number",
+                  "smartCard",
+                  "smart_card",
+                  "iuc",
+                ]
+              ) ||
+              firstValue(
+                cableOrder,
+                [
+                  "smartCardNumber",
+                  "smart_card_number",
+                  "smartcardNumber",
+                  "smartcard_number",
+                  "iucNumber",
+                  "iuc_number",
+                  "smartCard",
+                  "smart_card",
+                  "iuc",
+                ]
+              );
 
-        providerReference:
-          data.providerReference ||
-          null,
+            const cablePlan =
+              firstValue(
+                data,
+                [
+                  "plan",
+                  "planName",
+                  "plan_name",
+                  "package",
+                  "packageName",
+                  "package_name",
+                  "cablePlan",
+                  "cable_plan",
+                  "cableplan",
+                  "size",
+                ]
+              ) ||
+              firstValue(
+                cableOrder,
+                [
+                  "plan",
+                  "planName",
+                  "plan_name",
+                  "package",
+                  "packageName",
+                  "package_name",
+                  "cablePlan",
+                  "cable_plan",
+                  "cableplan",
+                  "size",
+                ]
+              );
 
-        electricityProvider: null,
+            const duration =
+              firstValue(
+                data,
+                [
+                  "duration",
+                  "durationDays",
+                  "duration_days",
+                ]
+              ) ||
+              firstValue(
+                cableOrder,
+                [
+                  "duration",
+                  "durationDays",
+                  "duration_days",
+                ]
+              );
 
-        discoName: null,
+            transactions.push({
+              id:
+                `wallet_transaction_${doc.id}`,
 
-        meterNumber: null,
+              category,
 
-        meterType: null,
+              type:
+                isRefund
+                  ? "refund"
+                  : isDebit
+                  ? "debit"
+                  : transactionType ||
+                    "transaction",
 
-        electricityToken: null,
+              service:
+                service ||
+                "other",
 
-        createdAt:
-          timestampToISOString(
-            data.createdAt
-          ),
+              title,
 
-        details: {
-          debitStatus:
-            data.debitStatus ||
-            null,
-        },
-      });
-    });
+              description,
 
-    /*
-     * AIRTIME ORDERS WITHOUT WALLET TRANSACTION
-     */
-
-    airtimeOrdersSnapshot.forEach(
-      (doc) => {
-        const data = doc.data();
-
-        if (
-          walletTransactionOrderIds.has(
-            doc.id
-          )
-        ) {
-          return;
-        }
-
-        const amount =
-          numberOrZero(
-            data.amount ||
-              data.sellingPrice
-          );
-
-        transactions.push({
-          id:
-            `airtime_order_${doc.id}`,
-
-          category: "airtime",
-
-          type: "purchase",
-
-          service: "airtime",
-
-          title: "Airtime Purchase",
-
-          description:
-            data.description ||
-            `Airtime purchase - ₦${amount.toLocaleString()}`,
-
-          amount,
-
-          amountSigned:
-            -Math.abs(amount),
-
-          status:
-            normalizeStatus(
-              data.status
-            ),
-
-          reference:
-            data.requestId ||
-            data.orderId ||
-            doc.id,
-
-          requestId:
-            data.requestId ||
-            null,
-
-          orderId: doc.id,
-
-          network:
-            data.network ||
-            null,
-
-          mobileNumber:
-            data.mobileNumber ||
-            null,
-
-          plan: null,
-
-          providerReference:
-            data.providerReference ||
-            null,
-
-          electricityProvider: null,
-
-          discoName: null,
-
-          meterNumber: null,
-
-          meterType: null,
-
-          electricityToken: null,
-
-          createdAt:
-            timestampToISOString(
-              data.createdAt
-            ),
-
-          details: {
-            airtimeAmount:
               amount,
 
-            debitStatus:
-              data.debitStatus ||
-              null,
-          },
-        });
+              amountSigned:
+                signedAmount,
+
+              status,
+
+              reference:
+                data.reference ||
+                data.requestId ||
+                doc.id,
+
+              requestId:
+                data.requestId ||
+                order?.requestId ||
+                null,
+
+              orderId:
+                data.orderId ||
+                null,
+
+              network:
+                data.network ||
+                order?.network ||
+                null,
+
+              mobileNumber:
+                data.mobileNumber ||
+                order?.mobileNumber ||
+                null,
+
+              plan:
+                data.planName ||
+                data.plan ||
+                order?.planName ||
+                order?.plan ||
+                order?.size ||
+                null,
+
+              providerReference:
+                data.providerReference ||
+                order?.providerReference ||
+                order?.providerId ||
+                null,
+
+              electricityProvider:
+                electricityProvider ||
+                null,
+
+              discoName:
+                electricityProvider ||
+                null,
+
+              meterNumber:
+                meterNumber ||
+                null,
+
+              meterType:
+                meterType ||
+                null,
+
+              electricityToken:
+                electricityToken ||
+                null,
+
+              cableName:
+                cableProvider ||
+                null,
+
+              cableProvider:
+                cableProvider ||
+                null,
+
+              smartCardNumber:
+                smartCardNumber ||
+                null,
+
+              cablePlan:
+                cablePlan ||
+                null,
+
+              duration:
+                duration ||
+                null,
+
+              createdAt:
+                timestampToISOString(
+                  data.createdAt ||
+                    order?.createdAt
+                ),
+
+              details: {
+                balanceBefore:
+                  numberOrZero(
+                    data.balanceBefore
+                  ),
+
+                balanceAfter:
+                  numberOrZero(
+                    data.balanceAfter
+                  ),
+
+                debitStatus:
+                  order?.debitStatus ||
+                  null,
+
+                providerStatus:
+                  order?.status ||
+                  null,
+
+                providerReference:
+                  electricityProviderReference ||
+                  null,
+
+                electricityProvider:
+                  electricityProvider ||
+                  null,
+
+                meterNumber:
+                  meterNumber ||
+                  null,
+
+                meterType:
+                  meterType ||
+                  null,
+
+                electricityToken:
+                  electricityToken ||
+                  null,
+
+                airtimeAmount:
+                  isAirtime
+                    ? numberOrZero(
+                        airtimeOrder?.amount ||
+                          data.amount
+                      )
+                    : null,
+
+                cableProvider:
+                  cableProvider ||
+                  null,
+
+                smartCardNumber:
+                  smartCardNumber ||
+                  null,
+
+                cablePlan:
+                  cablePlan ||
+                  null,
+
+                duration:
+                  duration ||
+                  null,
+              },
+            });
+          }
+        );
       }
-    );
 
-    /*
-     * ELECTRICITY ORDERS WITHOUT WALLET TRANSACTION
-     */
+      /*
+       * DATA ORDERS WITHOUT WALLET TRANSACTION
+       */
 
-    electricityOrdersSnapshot.forEach(
-      (doc) => {
-        const data = doc.data();
+      if (dataOrdersSnapshot) {
+        dataOrdersSnapshot.forEach(
+          (doc) => {
+            const data = doc.data();
 
-        if (
-          walletTransactionOrderIds.has(
-            doc.id
-          )
-        ) {
-          return;
+            if (
+              walletTransactionOrderIds.has(
+                doc.id
+              )
+            ) {
+              return;
+            }
+
+            const amount =
+              numberOrZero(
+                data.sellingPrice ??
+                  data.amount ??
+                  data.planAmount
+              );
+
+            transactions.push({
+              id:
+                `data_order_${doc.id}`,
+
+              category: "data",
+
+              type: "purchase",
+
+              service: "data",
+
+              title: "Data Purchase",
+
+              description:
+                data.description ||
+                `Data purchase - ${
+                  data.planName ||
+                  data.plan ||
+                  data.size ||
+                  "Data"
+                }`,
+
+              amount,
+
+              amountSigned:
+                -Math.abs(amount),
+
+              status:
+                normalizeStatus(
+                  data.status
+                ),
+
+              reference:
+                data.requestId ||
+                data.orderId ||
+                doc.id,
+
+              requestId:
+                data.requestId ||
+                null,
+
+              orderId: doc.id,
+
+              network:
+                data.network ||
+                null,
+
+              mobileNumber:
+                data.mobileNumber ||
+                null,
+
+              plan:
+                data.planName ||
+                data.plan ||
+                data.size ||
+                null,
+
+              providerReference:
+                data.providerReference ||
+                null,
+
+              electricityProvider:
+                null,
+
+              discoName:
+                null,
+
+              meterNumber:
+                null,
+
+              meterType:
+                null,
+
+              electricityToken:
+                null,
+
+              createdAt:
+                timestampToISOString(
+                  data.createdAt
+                ),
+
+              details: {
+                debitStatus:
+                  data.debitStatus ||
+                  null,
+              },
+            });
+          }
+        );
+      }
+
+      /*
+       * AIRTIME ORDERS WITHOUT WALLET TRANSACTION
+       */
+
+      if (airtimeOrdersSnapshot) {
+        airtimeOrdersSnapshot.forEach(
+          (doc) => {
+            const data = doc.data();
+
+            if (
+              walletTransactionOrderIds.has(
+                doc.id
+              )
+            ) {
+              return;
+            }
+
+            const amount =
+              numberOrZero(
+                data.amount ||
+                  data.sellingPrice
+              );
+
+            transactions.push({
+              id:
+                `airtime_order_${doc.id}`,
+
+              category: "airtime",
+
+              type: "purchase",
+
+              service: "airtime",
+
+              title:
+                "Airtime Purchase",
+
+              description:
+                data.description ||
+                `Airtime purchase - ₦${amount.toLocaleString()}`,
+
+              amount,
+
+              amountSigned:
+                -Math.abs(amount),
+
+              status:
+                normalizeStatus(
+                  data.status
+                ),
+
+              reference:
+                data.requestId ||
+                data.orderId ||
+                doc.id,
+
+              requestId:
+                data.requestId ||
+                null,
+
+              orderId: doc.id,
+
+              network:
+                data.network ||
+                null,
+
+              mobileNumber:
+                data.mobileNumber ||
+                null,
+
+              plan: null,
+
+              providerReference:
+                data.providerReference ||
+                null,
+
+              electricityProvider:
+                null,
+
+              discoName: null,
+
+              meterNumber: null,
+
+              meterType: null,
+
+              electricityToken:
+                null,
+
+              createdAt:
+                timestampToISOString(
+                  data.createdAt
+                ),
+
+              details: {
+                airtimeAmount:
+                  amount,
+
+                debitStatus:
+                  data.debitStatus ||
+                  null,
+              },
+            });
+          }
+        );
+      }
+
+      /*
+       * ELECTRICITY ORDERS WITHOUT WALLET TRANSACTION
+       */
+
+      if (electricityOrdersSnapshot) {
+        electricityOrdersSnapshot.forEach(
+          (doc) => {
+            const data = doc.data();
+
+            if (
+              walletTransactionOrderIds.has(
+                doc.id
+              )
+            ) {
+              return;
+            }
+
+            const amount =
+              numberOrZero(
+                data.amount ||
+                  data.sellingPrice ||
+                  data.planAmount ||
+                  data.plan_amount
+              );
+
+            const electricityProvider =
+              firstValue(
+                data,
+                [
+                  "electricityProvider",
+                  "electricity_provider",
+                  "discoName",
+                  "disco_name",
+                  "providerName",
+                  "provider",
+                ]
+              );
+
+            const meterNumber =
+              firstValue(
+                data,
+                [
+                  "meterNumber",
+                  "meter_number",
+                  "meter",
+                ]
+              );
+
+            const meterType =
+              firstValue(
+                data,
+                [
+                  "meterType",
+                  "meter_type",
+                  "MeterType",
+                ]
+              );
+
+            const electricityToken =
+              firstValue(
+                data,
+                [
+                  "electricityToken",
+                  "electricity_token",
+                  "token",
+                  "electricitytoken",
+                ]
+              );
+
+            const providerReference =
+              firstValue(
+                data,
+                [
+                  "providerReference",
+                  "provider_reference",
+                  "providerRef",
+                  "reference",
+                  "ident",
+                  "id",
+                ]
+              );
+
+            transactions.push({
+              id:
+                `electricity_order_${doc.id}`,
+
+              category:
+                "electricity",
+
+              type: "purchase",
+
+              service:
+                "electricity",
+
+              title:
+                "Electricity Purchase",
+
+              description:
+                data.description ||
+                `Electricity purchase - ${
+                  electricityProvider ||
+                  "Electricity"
+                }`,
+
+              amount,
+
+              amountSigned:
+                -Math.abs(amount),
+
+              status:
+                normalizeStatus(
+                  data.status
+                ),
+
+              reference:
+                data.requestId ||
+                data.orderId ||
+                providerReference ||
+                doc.id,
+
+              requestId:
+                data.requestId ||
+                null,
+
+              orderId: doc.id,
+
+              network: null,
+
+              mobileNumber: null,
+
+              plan: null,
+
+              providerReference:
+                providerReference ||
+                null,
+
+              electricityProvider:
+                electricityProvider ||
+                null,
+
+              discoName:
+                electricityProvider ||
+                null,
+
+              meterNumber:
+                meterNumber ||
+                null,
+
+              meterType:
+                meterType ||
+                null,
+
+              electricityToken:
+                electricityToken ||
+                null,
+
+              createdAt:
+                timestampToISOString(
+                  data.createdAt
+                ),
+
+              details: {
+                debitStatus:
+                  data.debitStatus ||
+                  null,
+
+                providerStatus:
+                  data.status ||
+                  null,
+
+                providerReference:
+                  providerReference ||
+                  null,
+
+                electricityProvider:
+                  electricityProvider ||
+                  null,
+
+                meterNumber:
+                  meterNumber ||
+                  null,
+
+                meterType:
+                  meterType ||
+                  null,
+
+                electricityToken:
+                  electricityToken ||
+                  null,
+              },
+            });
+          }
+        );
+      }
+
+      /*
+       * CABLE ORDERS WITHOUT WALLET TRANSACTION
+       */
+
+      if (cableOrdersSnapshot) {
+        cableOrdersSnapshot.forEach(
+          (doc) => {
+            const data = doc.data();
+
+            if (
+              walletTransactionOrderIds.has(
+                doc.id
+              )
+            ) {
+              return;
+            }
+
+            const amount =
+              numberOrZero(
+                data.amount ||
+                  data.sellingPrice ||
+                  data.planAmount ||
+                  data.plan_amount
+              );
+
+            const cableProvider =
+              firstValue(
+                data,
+                [
+                  "cableName",
+                  "cable_name",
+                  "cableProvider",
+                  "cable_provider",
+                  "cableTvProvider",
+                  "cable_tv_provider",
+                  "providerName",
+                  "provider",
+                  "the_cabletv_name",
+                ]
+              );
+
+            const smartCardNumber =
+              firstValue(
+                data,
+                [
+                  "smartCardNumber",
+                  "smart_card_number",
+                  "smartcardNumber",
+                  "smartcard_number",
+                  "iucNumber",
+                  "iuc_number",
+                  "smartCard",
+                  "smart_card",
+                  "iuc",
+                ]
+              );
+
+            const cablePlan =
+              firstValue(
+                data,
+                [
+                  "plan",
+                  "planName",
+                  "plan_name",
+                  "package",
+                  "packageName",
+                  "package_name",
+                  "cablePlan",
+                  "cable_plan",
+                  "cableplan",
+                  "size",
+                ]
+              );
+
+            const duration =
+              firstValue(
+                data,
+                [
+                  "duration",
+                  "durationDays",
+                  "duration_days",
+                ]
+              );
+
+            transactions.push({
+              id:
+                `cable_order_${doc.id}`,
+
+              category:
+                "cabletv",
+
+              type: "purchase",
+
+              service:
+                "cabletv",
+
+              title:
+                "Cable TV Purchase",
+
+              description:
+                data.description ||
+                `Cable TV purchase - ${
+                  cableProvider ||
+                  "Cable TV"
+                }`,
+
+              amount,
+
+              amountSigned:
+                -Math.abs(amount),
+
+              status:
+                normalizeStatus(
+                  data.status
+                ),
+
+              reference:
+                data.requestId ||
+                data.orderId ||
+                data.reference ||
+                doc.id,
+
+              requestId:
+                data.requestId ||
+                null,
+
+              orderId: doc.id,
+
+              network: null,
+
+              mobileNumber: null,
+
+              plan:
+                cablePlan ||
+                null,
+
+              providerReference:
+                data.providerReference ||
+                null,
+
+              electricityProvider:
+                null,
+
+              discoName:
+                null,
+
+              meterNumber:
+                null,
+
+              meterType:
+                null,
+
+              electricityToken:
+                null,
+
+              cableName:
+                cableProvider ||
+                null,
+
+              cableProvider:
+                cableProvider ||
+                null,
+
+              smartCardNumber:
+                smartCardNumber ||
+                null,
+
+              cablePlan:
+                cablePlan ||
+                null,
+
+              duration:
+                duration ||
+                null,
+
+              createdAt:
+                timestampToISOString(
+                  data.createdAt
+                ),
+
+              details: {
+                cableProvider:
+                  cableProvider ||
+                  null,
+
+                smartCardNumber:
+                  smartCardNumber ||
+                  null,
+
+                cablePlan:
+                  cablePlan ||
+                  null,
+
+                duration:
+                  duration ||
+                  null,
+              },
+            });
+          }
+        );
+      }
+
+      /*
+       * SORT NEWEST FIRST
+       */
+
+      transactions.sort(
+        (a, b) => {
+          const dateA =
+            a.createdAt
+              ? new Date(
+                  a.createdAt
+                ).getTime()
+              : 0;
+
+          const dateB =
+            b.createdAt
+              ? new Date(
+                  b.createdAt
+                ).getTime()
+              : 0;
+
+          return dateB - dateA;
         }
+      );
 
-        const amount =
-          numberOrZero(
-            data.amount ||
-              data.sellingPrice ||
-              data.planAmount ||
-              data.plan_amount
-          );
+      /*
+       * RESPONSE
+       */
 
-        const electricityProvider =
-          firstValue(
-            data,
-            [
-              "electricityProvider",
-              "electricity_provider",
-              "discoName",
-              "disco_name",
-              "providerName",
-              "provider",
-            ]
-          );
+      return res.status(200).json({
+        success: true,
 
-        const meterNumber =
-          firstValue(
-            data,
-            [
-              "meterNumber",
-              "meter_number",
-              "meter",
-            ]
-          );
+        count:
+          transactions.length,
 
-        const meterType =
-          firstValue(
-            data,
-            [
-              "meterType",
-              "meter_type",
-              "MeterType",
-            ]
-          );
+        data: transactions,
+      });
+    } catch (error) {
+      console.error(
+        "===================================="
+      );
 
-        const electricityToken =
-          firstValue(
-            data,
-            [
-              "electricityToken",
-              "electricity_token",
-              "token",
-              "electricitytoken",
-            ]
-          );
+      console.error(
+        "TRANSACTION HISTORY ERROR"
+      );
 
-        const providerReference =
-          firstValue(
-            data,
-            [
-              "providerReference",
-              "provider_reference",
-              "providerRef",
-              "reference",
-              "ident",
-              "id",
-            ]
-          );
+      console.error(
+        "Message:",
+        error.message
+      );
 
-        transactions.push({
-          id:
-            `electricity_order_${doc.id}`,
+      console.error(
+        "Code:",
+        error.code
+      );
 
-          category: "electricity",
+      console.error(
+        "Stack:",
+        error.stack
+      );
 
-          type: "purchase",
+      console.error(
+        "===================================="
+      );
 
-          service: "electricity",
+      return res.status(500).json({
+        success: false,
 
-          title: "Electricity Purchase",
+        message:
+          "Unable to load transaction history",
 
-          description:
-            data.description ||
-            `Electricity purchase - ${
-              electricityProvider ||
-              "Electricity"
-            }`,
+        error:
+          error.message,
 
-          amount,
-
-          amountSigned:
-            -Math.abs(amount),
-
-          status:
-            normalizeStatus(
-              data.status
-            ),
-
-          reference:
-            data.requestId ||
-            data.orderId ||
-            providerReference ||
-            doc.id,
-
-          requestId:
-            data.requestId ||
-            null,
-
-          orderId: doc.id,
-
-          network: null,
-
-          mobileNumber: null,
-
-          plan: null,
-
-          providerReference:
-            providerReference ||
-            null,
-
-          electricityProvider:
-            electricityProvider ||
-            null,
-
-          discoName:
-            electricityProvider ||
-            null,
-
-          meterNumber:
-            meterNumber ||
-            null,
-
-          meterType:
-            meterType ||
-            null,
-
-          electricityToken:
-            electricityToken ||
-            null,
-
-          createdAt:
-            timestampToISOString(
-              data.createdAt
-            ),
-
-          details: {
-            debitStatus:
-              data.debitStatus ||
-              null,
-
-            providerStatus:
-              data.status ||
-              null,
-
-            providerReference:
-              providerReference ||
-              null,
-
-            electricityProvider:
-              electricityProvider ||
-              null,
-
-            meterNumber:
-              meterNumber ||
-              null,
-
-            meterType:
-              meterType ||
-              null,
-
-            electricityToken:
-              electricityToken ||
-              null,
-          },
-        });
-      }
-    );
-
-    /*
-     * SORT NEWEST FIRST
-     */
-
-    transactions.sort(
-      (a, b) => {
-        const dateA =
-          a.createdAt
-            ? new Date(
-                a.createdAt
-              ).getTime()
-            : 0;
-
-        const dateB =
-          b.createdAt
-            ? new Date(
-                b.createdAt
-              ).getTime()
-            : 0;
-
-        return dateB - dateA;
-      }
-    );
-
-    /*
-     * RESPONSE
-     */
-
-    return res.status(200).json({
-      success: true,
-
-      count:
-        transactions.length,
-
-      data: transactions,
-    });
-  }  catch (error) {
-  console.error("====================================");
-  console.error("TRANSACTION HISTORY ERROR");
-  console.error("Message:", error.message);
-  console.error("Code:", error.code);
-  console.error("Stack:", error.stack);
-  console.error("====================================");
-
-  return res.status(500).json({
-    success: false,
-    message: "Unable to load transaction history",
-    error: error.message,
-    code: error.code || null,
-  });
-}
-});
+        code:
+          error.code || null,
+      });
+    }
+  }
+);
 
 module.exports = router;

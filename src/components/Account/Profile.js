@@ -3,41 +3,159 @@ import {
   onAuthStateChanged,
   updateProfile,
 } from "firebase/auth";
-import { auth } from "../../firebase";
+import { auth, db } from "../../firebase";
+import {
+  doc,
+  getDoc,
+  setDoc,
+} from "firebase/firestore";
 import { toast } from "react-toastify";
 
 const Profile = () => {
   const [user, setUser] = useState(null);
+  const [profileData, setProfileData] = useState({});
   const [displayName, setDisplayName] = useState("");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [copying, setCopying] = useState(false);
 
-  // =====================================================
-  // LOAD AUTHENTICATED USER
-  // =====================================================
+  /*
+  |--------------------------------------------------------------------------
+  | LOAD USER + FIRESTORE PROFILE
+  |--------------------------------------------------------------------------
+  */
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (authUser) => {
+  const unsubscribe = onAuthStateChanged(
+    auth,
+    async (authUser) => {
+      try {
         setUser(authUser);
 
         if (authUser) {
           setDisplayName(
             authUser.displayName || ""
           );
-        }
 
+          const userRef = doc(
+            db,
+            "users",
+            authUser.uid
+          );
+
+          const userSnap = await getDoc(
+            userRef
+          );
+
+          if (userSnap.exists()) {
+            const existingData =
+              userSnap.data() || {};
+
+            let updatedData = {
+              ...existingData,
+            };
+
+            /*
+            |--------------------------------------------------------------------------
+            | GENERATE REFERRAL CODE FOR OLD USERS
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+              !existingData.referralCode
+            ) {
+              const generatedReferralCode =
+                `IL${authUser.uid
+                  .slice(0, 8)
+                  .toUpperCase()}`;
+
+              await setDoc(
+                userRef,
+                {
+                  referralCode:
+                    generatedReferralCode,
+                },
+                {
+                  merge: true,
+                }
+              );
+
+              updatedData = {
+                ...existingData,
+                referralCode:
+                  generatedReferralCode,
+              };
+
+              console.log(
+                "Referral code generated for existing user:",
+                generatedReferralCode
+              );
+            }
+
+            setProfileData(
+              updatedData
+            );
+          } else {
+            /*
+            |--------------------------------------------------------------------------
+            | SAFETY: CREATE PROFILE DATA IF MISSING
+            |--------------------------------------------------------------------------
+            */
+
+            const generatedReferralCode =
+              `IL${authUser.uid
+                .slice(0, 8)
+                .toUpperCase()}`;
+
+            const newProfileData = {
+              referralCode:
+                generatedReferralCode,
+              referralCount: 0,
+              referralBonusEarned: 0,
+              referralBonusProcessed: false,
+            };
+
+            await setDoc(
+              userRef,
+              newProfileData,
+              {
+                merge: true,
+              }
+            );
+
+            setProfileData(
+              newProfileData
+            );
+
+            console.log(
+              "Referral profile created:",
+              generatedReferralCode
+            );
+          }
+        }
+      } catch (error) {
+        console.error(
+          "Profile loading error:",
+          error
+        );
+
+        toast.error(
+          "Unable to load your profile information."
+        );
+      } finally {
         setLoading(false);
       }
-    );
+    }
+  );
 
-    return () => unsubscribe();
-  }, []);
+  return () => unsubscribe();
+}, []);
 
-  // =====================================================
-  // SAVE PROFILE
-  // =====================================================
+  /*
+  |--------------------------------------------------------------------------
+  | SAVE PROFILE NAME
+  |--------------------------------------------------------------------------
+  */
 
   const handleSave = async () => {
     try {
@@ -100,9 +218,165 @@ const Profile = () => {
     }
   };
 
-  // =====================================================
-  // GET INITIALS
-  // =====================================================
+  /*
+  |--------------------------------------------------------------------------
+  | REFERRAL CODE
+  |--------------------------------------------------------------------------
+  */
+
+  const referralCode =
+    profileData.referralCode || "";
+
+  const referralCount =
+    Number(
+      profileData.referralCount || 0
+    );
+
+  const referralBonusEarned =
+    Number(
+      profileData.referralBonusEarned || 0
+    );
+
+  const referralLink = referralCode
+    ? `${window.location.origin}/signup?ref=${encodeURIComponent(
+        referralCode
+      )}`
+    : "";
+
+  /*
+  |--------------------------------------------------------------------------
+  | COPY REFERRAL CODE
+  |--------------------------------------------------------------------------
+  */
+
+  const copyReferralCode = async () => {
+    if (!referralCode) {
+      toast.error(
+        "Referral code is not available yet."
+      );
+      return;
+    }
+
+    try {
+      setCopying(true);
+
+      await navigator.clipboard.writeText(
+        referralCode
+      );
+
+      toast.success(
+        "Referral code copied!"
+      );
+    } catch (error) {
+      console.error(
+        "Copy referral code error:",
+        error
+      );
+
+      toast.error(
+        "Unable to copy referral code."
+      );
+    } finally {
+      setCopying(false);
+    }
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | COPY REFERRAL LINK
+  |--------------------------------------------------------------------------
+  */
+
+  const copyReferralLink = async () => {
+    if (!referralLink) {
+      toast.error(
+        "Referral link is not available yet."
+      );
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(
+        referralLink
+      );
+
+      toast.success(
+        "Referral link copied!"
+      );
+    } catch (error) {
+      console.error(
+        "Copy referral link error:",
+        error
+      );
+
+      toast.error(
+        "Unable to copy referral link."
+      );
+    }
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | SHARE REFERRAL
+  |--------------------------------------------------------------------------
+  */
+
+  const shareReferral = async () => {
+    if (!referralLink) {
+      toast.error(
+        "Referral link is not available yet."
+      );
+      return;
+    }
+
+    const shareText =
+      `Join me on INSTANT LOAD and enjoy fast VTU services. Use my referral code: ${referralCode}`;
+
+    try {
+      if (
+        navigator.share
+      ) {
+        await navigator.share({
+          title:
+            "Join INSTANT LOAD",
+          text: shareText,
+          url: referralLink,
+        });
+
+        return;
+      }
+
+      await navigator.clipboard.writeText(
+        `${shareText}\n${referralLink}`
+      );
+
+      toast.success(
+        "Referral message copied!"
+      );
+    } catch (error) {
+      if (
+        error?.name ===
+        "AbortError"
+      ) {
+        return;
+      }
+
+      console.error(
+        "Share referral error:",
+        error
+      );
+
+      toast.error(
+        "Unable to share referral link."
+      );
+    }
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | INITIALS
+  |--------------------------------------------------------------------------
+  */
 
   const getInitials = () => {
     const name =
@@ -115,7 +389,9 @@ const Profile = () => {
       if (parts.length >= 2) {
         return (
           parts[0][0] +
-          parts[parts.length - 1][0]
+          parts[
+            parts.length - 1
+          ][0]
         ).toUpperCase();
       }
 
@@ -133,12 +409,16 @@ const Profile = () => {
     return "IL";
   };
 
-  // =====================================================
-  // ACCOUNT DATE
-  // =====================================================
+  /*
+  |--------------------------------------------------------------------------
+  | ACCOUNT DATE
+  |--------------------------------------------------------------------------
+  */
 
   const getAccountDate = () => {
-    if (!user?.metadata?.creationTime) {
+    if (
+      !user?.metadata?.creationTime
+    ) {
       return "Not available";
     }
 
@@ -154,15 +434,18 @@ const Profile = () => {
     );
   };
 
-  // =====================================================
-  // LOADING
-  // =====================================================
+  /*
+  |--------------------------------------------------------------------------
+  | LOADING
+  |--------------------------------------------------------------------------
+  */
 
   if (loading) {
     return (
       <div style={styles.page}>
         <div style={styles.loadingCard}>
           <div style={styles.spinner} />
+
           <p style={styles.loadingText}>
             Loading your profile...
           </p>
@@ -173,9 +456,11 @@ const Profile = () => {
     );
   }
 
-  // =====================================================
-  // NOT LOGGED IN
-  // =====================================================
+  /*
+  |--------------------------------------------------------------------------
+  | NOT LOGGED IN
+  |--------------------------------------------------------------------------
+  */
 
   if (!user) {
     return (
@@ -199,26 +484,28 @@ const Profile = () => {
     );
   }
 
-  // =====================================================
-  // PROFILE
-  // =====================================================
+  /*
+  |--------------------------------------------------------------------------
+  | PROFILE
+  |--------------------------------------------------------------------------
+  */
 
   return (
     <div style={styles.page}>
       <div style={styles.container}>
 
-        {/* =================================================
-            HEADER
-        ================================================= */}
+        {/* HEADER */}
 
         <div style={styles.header}>
-
           <div>
             <span style={styles.badge}>
               INSTANT LOAD
             </span>
 
-            <h1 style={styles.title}>
+            <h1
+              style={styles.title}
+              className="instant-profile-title"
+            >
               My Profile
             </h1>
 
@@ -227,23 +514,26 @@ const Profile = () => {
               information.
             </p>
           </div>
-
         </div>
 
+        {/* PROFILE HERO */}
 
-        {/* =================================================
-            PROFILE HERO
-        ================================================= */}
-
-        <div style={styles.profileHero}>
-
-          <div style={styles.avatar}>
+        <div
+          style={styles.profileHero}
+          className="instant-profile-hero"
+        >
+          <div
+            style={styles.avatar}
+            className="instant-profile-avatar"
+          >
             {getInitials()}
           </div>
 
           <div style={styles.profileHeroInfo}>
-
-            <h2 style={styles.profileName}>
+            <h2
+              style={styles.profileName}
+              className="instant-profile-name"
+            >
               {user.displayName ||
                 "INSTANT LOAD User"}
             </h2>
@@ -254,28 +544,233 @@ const Profile = () => {
             </p>
 
             <div style={styles.verifiedBadge}>
-              <span>
-                ✓
-              </span>
+              <span>✓</span>
 
               <span>
                 Account verified
               </span>
             </div>
-
           </div>
-
         </div>
 
+        {/* REFERRAL PROGRAM */}
 
-        {/* =================================================
-            PERSONAL INFORMATION
-        ================================================= */}
-
-        <div style={styles.card}>
-
+        <div
+          style={styles.referralCard}
+          className="instant-profile-card"
+        >
           <div style={styles.cardHeader}>
+            <div
+              style={styles.referralIcon}
+            >
+              🎁
+            </div>
 
+            <div>
+              <h2 style={styles.cardTitle}>
+                Referral Program
+              </h2>
+
+              <p style={styles.cardSubtitle}>
+                Invite friends and earn ₦100
+                when they make their first
+                successful wallet deposit.
+              </p>
+            </div>
+          </div>
+
+          {/* REFERRAL CODE */}
+
+          <div style={styles.referralCodeBox}>
+            <div>
+              <div
+                style={
+                  styles.referralSmallLabel
+                }
+              >
+                YOUR REFERRAL CODE
+              </div>
+
+              <div
+                style={
+                  styles.referralCode
+                }
+              >
+                {referralCode ||
+                  "Generating..."}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={
+                copyReferralCode
+              }
+              disabled={
+                copying ||
+                !referralCode
+              }
+              style={
+                styles.copyButton
+              }
+            >
+              {copying
+                ? "..."
+                : "Copy"}
+            </button>
+          </div>
+
+          {/* REFERRAL LINK */}
+
+          <div
+            style={styles.referralLinkBox}
+          >
+            <div
+              style={
+                styles.referralSmallLabel
+              }
+            >
+              YOUR REFERRAL LINK
+            </div>
+
+            <div
+              style={
+                styles.referralLinkRow
+              }
+            >
+              <div
+                style={
+                  styles.referralLinkText
+                }
+              >
+                {referralLink ||
+                  "Generating referral link..."}
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  copyReferralLink
+                }
+                disabled={
+                  !referralLink
+                }
+                style={
+                  styles.linkCopyButton
+                }
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+
+          {/* STATS */}
+
+          <div
+            style={styles.referralStats}
+          >
+            <div
+              style={
+                styles.referralStat
+              }
+            >
+              <span
+                style={
+                  styles.referralStatIcon
+                }
+              >
+                👥
+              </span>
+
+              <div>
+                <strong
+                  style={
+                    styles.referralStatValue
+                  }
+                >
+                  {referralCount}
+                </strong>
+
+                <span
+                  style={
+                    styles.referralStatLabel
+                  }
+                >
+                  Referrals
+                </span>
+              </div>
+            </div>
+
+            <div
+              style={
+                styles.referralStat
+              }
+            >
+              <span
+                style={
+                  styles.referralStatIcon
+                }
+              >
+                💰
+              </span>
+
+              <div>
+                <strong
+                  style={
+                    styles.referralStatValue
+                  }
+                >
+                  ₦
+                  {referralBonusEarned.toLocaleString(
+                    "en-NG"
+                  )}
+                </strong>
+
+                <span
+                  style={
+                    styles.referralStatLabel
+                  }
+                >
+                  Earnings
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* SHARE BUTTON */}
+
+          <button
+            type="button"
+            onClick={shareReferral}
+            disabled={!referralLink}
+            style={
+              styles.shareButton
+            }
+          >
+            📤 Share My Referral Link
+          </button>
+
+          <p
+            style={
+              styles.referralNotice
+            }
+          >
+            Your friend must make their first
+            successful wallet deposit before
+            the ₦100 bonus is awarded.
+          </p>
+        </div>
+
+        {/* PERSONAL INFORMATION */}
+
+        <div
+          style={styles.card}
+          className="instant-profile-card"
+        >
+          <div
+            style={styles.cardHeader}
+            className="instant-profile-card-header"
+          >
             <div style={styles.cardIcon}>
               👤
             </div>
@@ -290,14 +785,11 @@ const Profile = () => {
                 INSTANT LOAD account.
               </p>
             </div>
-
           </div>
-
 
           {/* NAME */}
 
           <div style={styles.field}>
-
             <label style={styles.label}>
               Full Name
             </label>
@@ -314,28 +806,24 @@ const Profile = () => {
               maxLength={60}
               style={styles.input}
             />
-
           </div>
-
 
           {/* EMAIL */}
 
           <div style={styles.field}>
-
             <label style={styles.label}>
               Email Address
             </label>
 
             <div
               style={styles.readOnlyField}
+              className="instant-profile-readonly"
             >
-
-              <span>
-                ✉️
-              </span>
+              <span>✉️</span>
 
               <span
                 style={styles.readOnlyValue}
+                className="instant-profile-readonly-value"
               >
                 {user.email ||
                   "No email address"}
@@ -343,38 +831,34 @@ const Profile = () => {
 
               <span
                 style={styles.lockedText}
+                className="instant-profile-locked"
               >
                 Locked
               </span>
-
             </div>
 
             <p style={styles.fieldHint}>
               Your login email is managed
               securely by Firebase.
             </p>
-
           </div>
-
 
           {/* PHONE */}
 
           <div style={styles.field}>
-
             <label style={styles.label}>
               Phone Number
             </label>
 
             <div
               style={styles.readOnlyField}
+              className="instant-profile-readonly"
             >
-
-              <span>
-                📱
-              </span>
+              <span>📱</span>
 
               <span
                 style={styles.readOnlyValue}
+                className="instant-profile-readonly-value"
               >
                 {user.phoneNumber ||
                   "Not added"}
@@ -382,21 +866,19 @@ const Profile = () => {
 
               <span
                 style={styles.lockedText}
+                className="instant-profile-locked"
               >
                 {user.phoneNumber
                   ? "Verified"
                   : "Not added"}
               </span>
-
             </div>
 
             <p style={styles.fieldHint}>
               Phone number changes are not
               enabled here yet.
             </p>
-
           </div>
-
 
           {/* SAVE */}
 
@@ -415,18 +897,15 @@ const Profile = () => {
               ? "Saving..."
               : "Save Changes"}
           </button>
-
         </div>
 
+        {/* ACCOUNT INFORMATION */}
 
-        {/* =================================================
-            ACCOUNT INFORMATION
-        ================================================= */}
-
-        <div style={styles.card}>
-
+        <div
+          style={styles.card}
+          className="instant-profile-card"
+        >
           <div style={styles.cardHeader}>
-
             <div style={styles.cardIcon}>
               🛡️
             </div>
@@ -441,14 +920,14 @@ const Profile = () => {
                 INSTANT LOAD account.
               </p>
             </div>
-
           </div>
-
 
           <div style={styles.infoList}>
 
-            <div style={styles.infoRow}>
-
+            <div
+              style={styles.infoRow}
+              className="instant-profile-info-row"
+            >
               <div style={styles.infoLeft}>
                 <span style={styles.infoIcon}>
                   🆔
@@ -459,16 +938,19 @@ const Profile = () => {
                 </span>
               </div>
 
-              <span style={styles.infoValue}>
+              <span
+                style={styles.infoValue}
+                className="instant-profile-info-value"
+              >
                 {user.uid.substring(0, 12)}
                 ...
               </span>
-
             </div>
 
-
-            <div style={styles.infoRow}>
-
+            <div
+              style={styles.infoRow}
+              className="instant-profile-info-row"
+            >
               <div style={styles.infoLeft}>
                 <span style={styles.infoIcon}>
                   📅
@@ -479,15 +961,18 @@ const Profile = () => {
                 </span>
               </div>
 
-              <span style={styles.infoValue}>
+              <span
+                style={styles.infoValue}
+                className="instant-profile-info-value"
+              >
                 {getAccountDate()}
               </span>
-
             </div>
 
-
-            <div style={styles.infoRow}>
-
+            <div
+              style={styles.infoRow}
+              className="instant-profile-info-row"
+            >
               <div style={styles.infoLeft}>
                 <span style={styles.infoIcon}>
                   🔒
@@ -501,26 +986,19 @@ const Profile = () => {
               <span style={styles.secureStatus}>
                 Protected
               </span>
-
             </div>
 
           </div>
-
         </div>
 
-
-        {/* =================================================
-            PROFILE PHOTO NOTICE
-        ================================================= */}
+        {/* PROFILE PHOTO NOTICE */}
 
         <div style={styles.notice}>
-
           <div style={styles.noticeIcon}>
             ℹ️
           </div>
 
           <div>
-
             <strong style={styles.noticeTitle}>
               Profile photo
             </strong>
@@ -531,21 +1009,15 @@ const Profile = () => {
               added later without affecting
               your account or payment system.
             </p>
-
           </div>
-
         </div>
 
-
-        {/* =================================================
-            HELP
-        ================================================= */}
+        {/* HELP */}
 
         <div style={styles.help}>
           Your profile information is secured
           through your Firebase account.
         </div>
-
       </div>
 
       <ResponsiveStyles />
@@ -553,14 +1025,14 @@ const Profile = () => {
   );
 };
 
-
-// =====================================================
-// RESPONSIVE CSS
-// =====================================================
+/*
+|--------------------------------------------------------------------------
+| RESPONSIVE CSS
+|--------------------------------------------------------------------------
+*/
 
 const ResponsiveStyles = () => (
   <style>{`
-
     * {
       box-sizing: border-box;
     }
@@ -573,12 +1045,17 @@ const ResponsiveStyles = () => (
       overflow-x: hidden;
     }
 
-    .instant-profile-page {
-      width: 100%;
+    @keyframes instantProfileSpin {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     @media (max-width: 768px) {
-
       .instant-profile-page {
         padding:
           20px
@@ -635,10 +1112,12 @@ const ResponsiveStyles = () => (
         word-break: break-word !important;
       }
 
+      .instant-referral-stats {
+        grid-template-columns: 1fr !important;
+      }
     }
 
     @media (max-width: 480px) {
-
       .instant-profile-page {
         padding:
           16px
@@ -690,15 +1169,23 @@ const ResponsiveStyles = () => (
         text-align: left !important;
       }
 
-    }
+      .instant-referral-code-row {
+        flex-direction: column !important;
+        align-items: stretch !important;
+      }
 
+      .instant-referral-copy {
+        width: 100% !important;
+      }
+    }
   `}</style>
 );
 
-
-// =====================================================
-// STYLES
-// =====================================================
+/*
+|--------------------------------------------------------------------------
+| STYLES
+|--------------------------------------------------------------------------
+*/
 
 const styles = {
   page: {
@@ -833,6 +1320,18 @@ const styles = {
     boxSizing: "border-box",
   },
 
+  referralCard: {
+  width: "100%",
+  background: "#fff",
+  color: "#111827",
+  borderRadius: "22px",
+  padding: "26px",
+  marginBottom: "18px",
+  boxShadow:
+    "0 12px 40px rgba(15,23,42,0.07)",
+  boxSizing: "border-box",
+},
+
   cardHeader: {
     display: "flex",
     alignItems: "center",
@@ -850,6 +1349,19 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     fontSize: "18px",
+  },
+
+  referralIcon: {
+    width: "43px",
+    height: "43px",
+    minWidth: "43px",
+    borderRadius: "13px",
+    background:
+      "rgba(255,255,255,0.12)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "20px",
   },
 
   cardTitle: {
@@ -953,6 +1465,149 @@ const styles = {
     cursor: "not-allowed",
     boxShadow: "none",
   },
+
+  /*
+  |--------------------------------------------------------------------------
+  | REFERRAL STYLES
+  |--------------------------------------------------------------------------
+  */
+
+  referralCodeBox: {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "15px",
+  padding: "16px",
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "15px",
+  marginBottom: "14px",
+},
+
+referralSmallLabel: {
+  fontSize: "9px",
+  fontWeight: 800,
+  letterSpacing: "1px",
+  color: "#64748b",
+  marginBottom: "6px",
+},
+
+referralCode: {
+  fontSize: "23px",
+  fontWeight: 900,
+  letterSpacing: "2px",
+  color: "#111827",
+},
+
+copyButton: {
+  border: "1px solid #dbe3ef",
+  background: "#fff",
+  color: "#2563eb",
+  borderRadius: "10px",
+  padding: "10px 16px",
+  fontWeight: 800,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+},
+
+referralLinkBox: {
+  padding: "14px",
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "14px",
+  marginBottom: "15px",
+},
+
+referralLinkRow: {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+},
+
+referralLinkText: {
+  flex: 1,
+  minWidth: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  color: "#475569",
+  fontSize: "11px",
+},
+
+linkCopyButton: {
+  border: "1px solid #dbe3ef",
+  background: "#fff",
+  color: "#2563eb",
+  borderRadius: "8px",
+  padding: "7px 11px",
+  fontSize: "11px",
+  fontWeight: 700,
+  cursor: "pointer",
+},
+
+referralStats: {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "12px",
+  marginBottom: "15px",
+},
+
+referralStat: {
+  display: "flex",
+  alignItems: "center",
+  gap: "11px",
+  padding: "14px",
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "13px",
+},
+
+referralStatIcon: {
+  width: "36px",
+  height: "36px",
+  minWidth: "36px",
+  borderRadius: "10px",
+  background: "#eff6ff",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "17px",
+},
+
+referralStatValue: {
+  display: "block",
+  color: "#111827",
+  fontSize: "17px",
+  fontWeight: 900,
+},
+
+referralStatLabel: {
+  display: "block",
+  color: "#64748b",
+  fontSize: "10px",
+  marginTop: "2px",
+},
+
+shareButton: {
+  width: "100%",
+  height: "50px",
+  border: "none",
+  borderRadius: "12px",
+  background:
+    "linear-gradient(135deg, #22c55e, #16a34a)",
+  color: "#fff",
+  fontSize: "13px",
+  fontWeight: 800,
+  cursor: "pointer",
+},
+
+referralNotice: {
+  margin: "12px 0 0",
+  textAlign: "center",
+  color: "#64748b",
+  fontSize: "10px",
+  lineHeight: 1.5,
+},
 
   infoList: {
     width: "100%",

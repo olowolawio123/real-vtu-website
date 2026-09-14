@@ -1,796 +1,258 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
+import React from "react";
+import { useNavigate } from "react-router-dom";
 import { auth } from "../../firebase";
+import { signOut } from "firebase/auth";
 
-const API_URL = "http://localhost:5000";
+function AdminDashboard() {
+  const navigate = useNavigate();
 
-function formatMoney(value) {
-  return `₦${Number(value || 0).toLocaleString("en-NG", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-function formatDate(value) {
-  if (!value) return "-";
-
-  try {
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
-
-    return date.toLocaleString("en-NG");
-  } catch {
-    return "-";
-  }
-}
-
-function getStatusStyle(status) {
-  const value = String(status || "").toLowerCase();
-
-  if (
-    value.includes("success") ||
-    value.includes("completed")
-  ) {
-    return {
-      background: "#dcfce7",
-      color: "#166534",
-    };
-  }
-
-  if (
-    value.includes("fail") ||
-    value.includes("cancel") ||
-    value.includes("error")
-  ) {
-    return {
-      background: "#fee2e2",
-      color: "#991b1b",
-    };
-  }
-
-  return {
-    background: "#fef3c7",
-    color: "#92400e",
-  };
-}
-
-export default function AdminDashboard() {
-  const [user, setUser] = useState(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const [dashboard, setDashboard] = useState(null);
-  const [users, setUsers] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [walletTransactions, setWalletTransactions] = useState([]);
-
-  const [activeTab, setActiveTab] = useState("overview");
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (currentUser) => {
-        setUser(currentUser);
-        setLoadingAuth(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, []);
-
-  const getToken = useCallback(async () => {
-    if (!user) {
-      throw new Error("You are not logged in.");
-    }
-
-    return user.getIdToken();
-  }, [user]);
-
-  const adminFetch = useCallback(
-    async (endpoint) => {
-      const token = await getToken();
-
-      const response = await fetch(
-        `${API_URL}${endpoint}`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const result = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        if (response.status === 403) {
-          throw new Error(
-            "Admin access required."
-          );
-        }
-
-        throw new Error(
-          result.message ||
-            "Unable to load admin data."
-        );
-      }
-
-      return result;
-    },
-    [getToken]
-  );
-
-  const loadAdminData = useCallback(async () => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
+  const handleLogout = async () => {
     try {
-      setLoading(true);
-      setError("");
-
-      const [
-        dashboardResult,
-        usersResult,
-        ordersResult,
-        walletResult,
-      ] = await Promise.all([
-        adminFetch("/api/admin/dashboard"),
-        adminFetch("/api/admin/users"),
-        adminFetch("/api/admin/orders"),
-        adminFetch(
-          "/api/admin/wallet-transactions"
-        ),
-      ]);
-
-      setDashboard(
-        dashboardResult.data || null
-      );
-
-      setUsers(
-        dashboardResult.data?.users
-          ? usersResult.data || []
-          : usersResult.data || []
-      );
-
-      setOrders(
-        ordersResult.data || []
-      );
-
-      setWalletTransactions(
-        walletResult.data || []
-      );
-    } catch (err) {
-      console.error(
-        "Admin dashboard error:",
-        err
-      );
-
-      setError(
-        err.message ||
-          "Failed to load admin dashboard."
-      );
-    } finally {
-      setLoading(false);
+      await signOut(auth);
+      navigate("/login");
+    } catch (error) {
+      console.error("Admin logout error:", error);
     }
-  }, [user, adminFetch]);
-
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    loadAdminData();
-  }, [user, loadAdminData]);
-
-  if (loadingAuth) {
-    return (
-      <div style={styles.centerPage}>
-        <div style={styles.loadingText}>
-          Checking authentication...
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div style={styles.centerPage}>
-        <div style={styles.messageCard}>
-          <h2 style={styles.messageTitle}>
-            Admin Dashboard
-          </h2>
-
-          <p style={styles.messageText}>
-            Please log in with your admin
-            account to continue.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div style={styles.centerPage}>
-        <div style={styles.loadingText}>
-          Loading admin dashboard...
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={styles.centerPage}>
-        <div style={styles.errorCard}>
-          <h2 style={styles.messageTitle}>
-            Unable to load dashboard
-          </h2>
-
-          <p style={styles.messageText}>
-            {error}
-          </p>
-
-          <button
-            style={styles.primaryButton}
-            onClick={loadAdminData}
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const stats = dashboard || {};
-
-  const totalUsers =
-    stats.users?.total || 0;
-
-  const walletFunding =
-    stats.wallet?.successfulFunding || 0;
-
-  const walletDebits =
-    stats.wallet?.totalDebits || 0;
-
-  const walletRefunds =
-    stats.wallet?.totalRefunds || 0;
-
-  const dataOrders =
-    stats.services?.data?.total || 0;
-
-  const airtimeOrders =
-    stats.services?.airtime?.total || 0;
-
-  const electricityOrders =
-    stats.services?.electricity?.total || 0;
-
-  const cableTvOrders =
-    stats.services?.cableTv?.total || 0;
+  };
 
   return (
     <div style={styles.page}>
-      <div style={styles.container}>
-
-        {/* HEADER */}
-        <div style={styles.header}>
-          <div>
-            <div style={styles.smallLabel}>
-              ADMIN PANEL
+      <aside style={styles.sidebar}>
+        <div>
+          <div style={styles.logo}>
+            <div style={styles.logoIcon}>⚡</div>
+            <div>
+              <div style={styles.logoTitle}>INSTANT LOAD</div>
+              <div style={styles.logoSub}>ADMIN PANEL</div>
             </div>
+          </div>
 
-            <h1 style={styles.title}>
-              VTU Dashboard
-            </h1>
+          <nav style={styles.nav}>
+            <button style={{ ...styles.navItem, ...styles.activeNav }}>
+              <span>📊</span>
+              Dashboard
+            </button>
 
+            <button style={styles.navItem}>
+              <span>👥</span>
+              Users
+            </button>
+
+            <button style={styles.navItem}>
+              <span>💰</span>
+              Deposits
+            </button>
+
+            <button style={styles.navItem}>
+              <span>🔄</span>
+              Transactions
+            </button>
+
+            <button style={styles.navItem}>
+              <span>🎁</span>
+              Referrals & Bonuses
+            </button>
+
+            <button style={styles.navItem}>
+              <span>⚙️</span>
+              Settings
+            </button>
+          </nav>
+        </div>
+
+        <button onClick={handleLogout} style={styles.logoutButton}>
+          <span>🚪</span>
+          Logout
+        </button>
+      </aside>
+
+      <main style={styles.main}>
+        <header style={styles.header}>
+          <div>
+            <h1 style={styles.heading}>Admin Dashboard</h1>
             <p style={styles.subtitle}>
-              Welcome,{" "}
-              {user.email ||
-                "Administrator"}
+              Manage INSTANT LOAD and monitor platform activity.
             </p>
           </div>
 
-          <button
-            style={styles.refreshButton}
-            onClick={loadAdminData}
-          >
-            Refresh
-          </button>
-        </div>
-
-        {/* TABS */}
-        <div style={styles.tabs}>
-          <button
-            onClick={() =>
-              setActiveTab("overview")
-            }
-            style={{
-              ...styles.tab,
-              ...(activeTab === "overview"
-                ? styles.activeTab
-                : {}),
-            }}
-          >
-            Overview
-          </button>
-
-          <button
-            onClick={() =>
-              setActiveTab("users")
-            }
-            style={{
-              ...styles.tab,
-              ...(activeTab === "users"
-                ? styles.activeTab
-                : {}),
-            }}
-          >
-            Users
-          </button>
-
-          <button
-            onClick={() =>
-              setActiveTab("orders")
-            }
-            style={{
-              ...styles.tab,
-              ...(activeTab === "orders"
-                ? styles.activeTab
-                : {}),
-            }}
-          >
-            Orders
-          </button>
-
-          <button
-            onClick={() =>
-              setActiveTab("wallet")
-            }
-            style={{
-              ...styles.tab,
-              ...(activeTab === "wallet"
-                ? styles.activeTab
-                : {}),
-            }}
-          >
-            Wallet Transactions
-          </button>
-        </div>
-
-        {/* OVERVIEW */}
-        {activeTab === "overview" && (
-          <>
-            <div style={styles.statsGrid}>
-              <StatCard
-                title="Total Users"
-                value={totalUsers}
-                icon="👥"
-              />
-
-              <StatCard
-                title="Wallet Funding"
-                value={formatMoney(
-                  walletFunding
-                )}
-                icon="💰"
-              />
-
-              <StatCard
-                title="Wallet Debits"
-                value={formatMoney(
-                  walletDebits
-                )}
-                icon="💳"
-              />
-
-              <StatCard
-                title="Wallet Refunds"
-                value={formatMoney(
-                  walletRefunds
-                )}
-                icon="↩️"
-              />
-
-              <StatCard
-                title="Data Orders"
-                value={dataOrders}
-                icon="📊"
-              />
-
-              <StatCard
-                title="Airtime Orders"
-                value={airtimeOrders}
-                icon="📱"
-              />
-
-              <StatCard
-                title="Electricity Orders"
-                value={electricityOrders}
-                icon="⚡"
-              />
-
-              <StatCard
-                title="Cable TV Orders"
-                value={cableTvOrders}
-                icon="📺"
-              />
+          <div style={styles.adminBadge}>
+            <div style={styles.adminAvatar}>A</div>
+            <div>
+              <strong style={{ display: "block" }}>Administrator</strong>
+              <span style={styles.adminText}>System Admin</span>
             </div>
+          </div>
+        </header>
 
-            <div style={styles.section}>
-              <div style={styles.sectionHeader}>
-                <h2 style={styles.sectionTitle}>
-                  Recent Orders
-                </h2>
+        <section style={styles.cards}>
+          <div style={styles.card}>
+            <div style={styles.cardIcon}>👥</div>
+            <div>
+              <p style={styles.cardLabel}>Total Users</p>
+              <h2 style={styles.cardValue}>—</h2>
+              <span style={styles.cardHint}>Coming from Firebase</span>
+            </div>
+          </div>
 
-                <button
-                  style={styles.textButton}
-                  onClick={() =>
-                    setActiveTab("orders")
-                  }
-                >
-                  View All
-                </button>
+          <div style={styles.card}>
+            <div style={styles.cardIcon}>💳</div>
+            <div>
+              <p style={styles.cardLabel}>Total Deposits</p>
+              <h2 style={styles.cardValue}>₦0</h2>
+              <span style={styles.cardHint}>Awaiting live data</span>
+            </div>
+          </div>
+
+          <div style={styles.card}>
+            <div style={styles.cardIcon}>🎁</div>
+            <div>
+              <p style={styles.cardLabel}>Referral Bonuses</p>
+              <h2 style={styles.cardValue}>₦0</h2>
+              <span style={styles.cardHint}>Referral system</span>
+            </div>
+          </div>
+
+          <div style={styles.card}>
+            <div style={styles.cardIcon}>🔄</div>
+            <div>
+              <p style={styles.cardLabel}>Transactions</p>
+              <h2 style={styles.cardValue}>—</h2>
+              <span style={styles.cardHint}>All platform transactions</span>
+            </div>
+          </div>
+        </section>
+
+        <section style={styles.grid}>
+          <div style={styles.panel}>
+            <div style={styles.panelHeader}>
+              <div>
+                <h3 style={styles.panelTitle}>Referral Program</h3>
+                <p style={styles.panelDescription}>
+                  Configure and monitor customer referral rewards.
+                </p>
               </div>
 
-              <OrdersTable
-                orders={orders.slice(0, 10)}
-              />
+              <div style={styles.statusBadge}>
+                ● Ready
+              </div>
             </div>
 
-            <div style={styles.section}>
-              <div style={styles.sectionHeader}>
-                <h2 style={styles.sectionTitle}>
-                  Recent Users
-                </h2>
-
-                <button
-                  style={styles.textButton}
-                  onClick={() =>
-                    setActiveTab("users")
-                  }
-                >
-                  View All
-                </button>
+            <div style={styles.referralBox}>
+              <div>
+                <span style={styles.smallLabel}>Current Bonus</span>
+                <strong style={styles.bonusAmount}>₦0</strong>
               </div>
 
-              <UsersTable
-                users={users.slice(0, 10)}
-              />
+              <button style={styles.primaryButton}>
+                Configure Bonus
+              </button>
             </div>
-          </>
-        )}
-
-        {/* USERS */}
-        {activeTab === "users" && (
-          <div style={styles.section}>
-            <div style={styles.sectionHeader}>
-              <h2 style={styles.sectionTitle}>
-                All Users ({users.length})
-              </h2>
-            </div>
-
-            <UsersTable users={users} />
           </div>
-        )}
 
-        {/* ORDERS */}
-        {activeTab === "orders" && (
-          <div style={styles.section}>
-            <div style={styles.sectionHeader}>
-              <h2 style={styles.sectionTitle}>
-                All Orders ({orders.length})
-              </h2>
+          <div style={styles.panel}>
+            <div style={styles.panelHeader}>
+              <div>
+                <h3 style={styles.panelTitle}>Platform Status</h3>
+                <p style={styles.panelDescription}>
+                  Current service status.
+                </p>
+              </div>
             </div>
 
-            <OrdersTable orders={orders} />
-          </div>
-        )}
+            <div style={styles.statusList}>
+              <div style={styles.statusRow}>
+                <span>Website</span>
+                <span style={styles.online}>● Online</span>
+              </div>
 
-        {/* WALLET TRANSACTIONS */}
-        {activeTab === "wallet" && (
-          <div style={styles.section}>
-            <div style={styles.sectionHeader}>
-              <h2 style={styles.sectionTitle}>
-                Wallet Transactions (
-                {walletTransactions.length})
-              </h2>
+              <div style={styles.statusRow}>
+                <span>Wallet System</span>
+                <span style={styles.online}>● Online</span>
+              </div>
+
+              <div style={styles.statusRow}>
+                <span>Paystack</span>
+                <span style={styles.online}>● Connected</span>
+              </div>
+
+              <div style={styles.statusRow}>
+                <span>VTU Provider</span>
+                <span style={styles.sandbox}>● Sandbox</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style={styles.panel}>
+          <div style={styles.panelHeader}>
+            <div>
+              <h3 style={styles.panelTitle}>Recent Activity</h3>
+              <p style={styles.panelDescription}>
+                Latest activity will appear here.
+              </p>
             </div>
 
-            <WalletTable
-              transactions={
-                walletTransactions
-              }
-            />
+            <button style={styles.secondaryButton}>
+              View All
+            </button>
           </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
-function StatCard({
-  title,
-  value,
-  icon,
-}) {
-  return (
-    <div style={styles.statCard}>
-      <div style={styles.statIcon}>
-        {icon}
-      </div>
+          <div style={styles.emptyState}>
+            <div style={styles.emptyIcon}>📋</div>
+            <h3 style={styles.emptyTitle}>No activity yet</h3>
+            <p style={styles.emptyText}>
+              Once users start making deposits and transactions,
+              their activity will appear here.
+            </p>
+          </div>
+        </section>
 
-      <div>
-        <div style={styles.statTitle}>
-          {title}
-        </div>
+        <footer style={styles.footer}>
+          INSTANT LOAD Admin Panel • Secure platform management
+        </footer>
+      </main>
 
-        <div style={styles.statValue}>
-          {value}
-        </div>
-      </div>
-    </div>
-  );
-}
+      <style>{`
+        * {
+          box-sizing: border-box;
+        }
 
-function UsersTable({ users }) {
-  if (!users.length) {
-    return (
-      <div style={styles.empty}>
-        No users found.
-      </div>
-    );
-  }
+        html, body, #root {
+          margin: 0;
+          padding: 0;
+          width: 100%;
+          max-width: 100%;
+          overflow-x: hidden;
+        }
 
-  return (
-    <div style={styles.tableWrapper}>
-      <table style={styles.table}>
-        <thead>
-          <tr>
-            <th style={styles.th}>
-              Email
-            </th>
+        button {
+          font-family: inherit;
+        }
 
-            <th style={styles.th}>
-              Wallet
-            </th>
+        @media (max-width: 850px) {
+          .instant-admin-sidebar {
+            display: none !important;
+          }
 
-            <th style={styles.th}>
-              Created
-            </th>
-          </tr>
-        </thead>
+          .instant-admin-main {
+            margin-left: 0 !important;
+            padding: 20px 14px 40px !important;
+          }
 
-        <tbody>
-          {users.map((item) => (
-            <tr
-              key={
-                item.id ||
-                item.uid
-              }
-            >
-              <td style={styles.td}>
-                <strong>
-                  {item.email ||
-                    "No email"}
-                </strong>
-              </td>
+          .instant-admin-header {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
 
-              <td style={styles.td}>
-                {formatMoney(
-                  item.wallet
-                )}
-              </td>
+          .instant-admin-cards {
+            grid-template-columns: 1fr !important;
+          }
 
-              <td style={styles.td}>
-                {formatDate(
-                  item.createdAt
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function OrdersTable({ orders }) {
-  if (!orders.length) {
-    return (
-      <div style={styles.empty}>
-        No orders found.
-      </div>
-    );
-  }
-
-  return (
-    <div style={styles.tableWrapper}>
-      <table style={styles.table}>
-        <thead>
-          <tr>
-            <th style={styles.th}>
-              Service
-            </th>
-
-            <th style={styles.th}>
-              User
-            </th>
-
-            <th style={styles.th}>
-              Amount
-            </th>
-
-            <th style={styles.th}>
-              Status
-            </th>
-
-            <th style={styles.th}>
-              Date
-            </th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {orders.map(
-            (item, index) => (
-              <tr
-                key={
-                  item.id ||
-                  `${item.service}-${index}`
-                }
-              >
-                <td style={styles.td}>
-                  <strong>
-                    {item.service ||
-                      "Service"}
-                  </strong>
-                </td>
-
-                <td style={styles.td}>
-                  {item.email ||
-                    item.uid ||
-                    "-"}
-                </td>
-
-                <td style={styles.td}>
-                  {formatMoney(
-                    item.amount
-                  )}
-                </td>
-
-                <td style={styles.td}>
-                  <span
-                    style={{
-                      ...styles.status,
-                      ...getStatusStyle(
-                        item.status
-                      ),
-                    }}
-                  >
-                    {item.status ||
-                      "Unknown"}
-                  </span>
-                </td>
-
-                <td style={styles.td}>
-                  {formatDate(
-                    item.createdAt
-                  )}
-                </td>
-              </tr>
-            )
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function WalletTable({
-  transactions,
-}) {
-  if (!transactions.length) {
-    return (
-      <div style={styles.empty}>
-        No wallet transactions
-        found.
-      </div>
-    );
-  }
-
-  return (
-    <div style={styles.tableWrapper}>
-      <table style={styles.table}>
-        <thead>
-          <tr>
-            <th style={styles.th}>
-              User
-            </th>
-
-            <th style={styles.th}>
-              Type
-            </th>
-
-            <th style={styles.th}>
-              Service
-            </th>
-
-            <th style={styles.th}>
-              Amount
-            </th>
-
-            <th style={styles.th}>
-              Status
-            </th>
-
-            <th style={styles.th}>
-              Date
-            </th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {transactions.map(
-            (item, index) => (
-              <tr
-                key={
-                  item.id ||
-                  index
-                }
-              >
-                <td style={styles.td}>
-                  {item.email ||
-                    item.uid ||
-                    "-"}
-                </td>
-
-                <td style={styles.td}>
-                  {item.type ||
-                    "-"}
-                </td>
-
-                <td style={styles.td}>
-                  {item.service ||
-                    "-"}
-                </td>
-
-                <td style={styles.td}>
-                  {formatMoney(
-                    item.amount
-                  )}
-                </td>
-
-                <td style={styles.td}>
-                  <span
-                    style={{
-                      ...styles.status,
-                      ...getStatusStyle(
-                        item.status
-                      ),
-                    }}
-                  >
-                    {item.status ||
-                      "Unknown"}
-                  </span>
-                </td>
-
-                <td style={styles.td}>
-                  {formatDate(
-                    item.createdAt
-                  )}
-                </td>
-              </tr>
-            )
-          )}
-        </tbody>
-      </table>
+          .instant-admin-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -799,253 +261,337 @@ const styles = {
   page: {
     minHeight: "100vh",
     background: "#f5f7fb",
-    padding: "30px 20px",
-    boxSizing: "border-box",
+    color: "#172033",
+    fontFamily:
+      "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   },
 
-  container: {
-    maxWidth: "1400px",
-    margin: "0 auto",
+  sidebar: {
+    position: "fixed",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 250,
+    background: "#111827",
+    color: "#fff",
+    padding: "24px 16px",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    zIndex: 100,
+  },
+
+  logo: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "4px 10px 30px",
+  },
+
+  logoIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    background: "#fff",
+    color: "#111827",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 22,
+  },
+
+  logoTitle: {
+    fontWeight: 800,
+    fontSize: 15,
+    letterSpacing: 0.5,
+  },
+
+  logoSub: {
+    fontSize: 10,
+    opacity: 0.55,
+    marginTop: 3,
+    letterSpacing: 1.5,
+  },
+
+  nav: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 7,
+  },
+
+  navItem: {
+    width: "100%",
+    border: "none",
+    background: "transparent",
+    color: "#cbd5e1",
+    padding: "13px 14px",
+    borderRadius: 10,
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    fontSize: 14,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+
+  activeNav: {
+    background: "#fff",
+    color: "#111827",
+    fontWeight: 700,
+  },
+
+  logoutButton: {
+    width: "100%",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "#fff",
+    padding: "13px 14px",
+    borderRadius: 10,
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    fontSize: 14,
+    cursor: "pointer",
+  },
+
+  main: {
+    marginLeft: 250,
+    minHeight: "100vh",
+    padding: "34px 34px 50px",
   },
 
   header: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: "20px",
-    marginBottom: "25px",
-    flexWrap: "wrap",
+    gap: 20,
+    marginBottom: 30,
   },
 
-  smallLabel: {
-    fontSize: "12px",
-    fontWeight: "700",
-    letterSpacing: "1.5px",
-    color: "#64748b",
-    marginBottom: "5px",
-  },
-
-  title: {
+  heading: {
     margin: 0,
-    fontSize: "32px",
-    color: "#111827",
+    fontSize: 30,
+    fontWeight: 800,
   },
 
   subtitle: {
     margin: "7px 0 0",
     color: "#64748b",
+    fontSize: 14,
   },
 
-  refreshButton: {
-    border: "none",
-    borderRadius: "10px",
-    padding: "12px 20px",
-    background: "#111827",
-    color: "#fff",
-    cursor: "pointer",
-    fontWeight: "600",
-  },
-
-  tabs: {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap",
-    marginBottom: "25px",
-    background: "#fff",
-    padding: "8px",
-    borderRadius: "12px",
-    boxShadow:
-      "0 2px 10px rgba(0,0,0,0.05)",
-  },
-
-  tab: {
-    border: "none",
-    background: "transparent",
-    padding: "11px 16px",
-    borderRadius: "8px",
-    cursor: "pointer",
-    color: "#64748b",
-    fontWeight: "600",
-  },
-
-  activeTab: {
-    background: "#111827",
-    color: "#fff",
-  },
-
-  statsGrid: {
-    display: "grid",
-    gridTemplateColumns:
-      "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: "16px",
-    marginBottom: "25px",
-  },
-
-  statCard: {
-    background: "#fff",
-    borderRadius: "14px",
-    padding: "20px",
+  adminBadge: {
     display: "flex",
     alignItems: "center",
-    gap: "15px",
-    boxShadow:
-      "0 2px 10px rgba(0,0,0,0.05)",
+    gap: 10,
+    background: "#fff",
+    padding: "9px 13px",
+    borderRadius: 12,
+    border: "1px solid #e5e7eb",
   },
 
-  statIcon: {
-    width: "48px",
-    height: "48px",
-    borderRadius: "12px",
+  adminAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: "50%",
+    background: "#111827",
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 800,
+  },
+
+  adminText: {
+    fontSize: 11,
+    color: "#64748b",
+  },
+
+  cards: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: 16,
+    marginBottom: 20,
+  },
+
+  card: {
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    borderRadius: 16,
+    padding: 20,
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    minWidth: 0,
+  },
+
+  cardIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
     background: "#f1f5f9",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "23px",
+    fontSize: 21,
     flexShrink: 0,
   },
 
-  statTitle: {
+  cardLabel: {
+    margin: 0,
     color: "#64748b",
-    fontSize: "13px",
-    marginBottom: "5px",
+    fontSize: 12,
   },
 
-  statValue: {
-    fontSize: "22px",
-    fontWeight: "700",
-    color: "#111827",
+  cardValue: {
+    margin: "4px 0",
+    fontSize: 23,
+    fontWeight: 800,
   },
 
-  section: {
+  cardHint: {
+    color: "#94a3b8",
+    fontSize: 10,
+  },
+
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "1.2fr 0.8fr",
+    gap: 20,
+    marginBottom: 20,
+  },
+
+  panel: {
     background: "#fff",
-    borderRadius: "14px",
-    padding: "20px",
-    marginBottom: "25px",
-    boxShadow:
-      "0 2px 10px rgba(0,0,0,0.05)",
-    overflow: "hidden",
+    border: "1px solid #e5e7eb",
+    borderRadius: 16,
+    padding: 22,
+    marginBottom: 20,
   },
 
-  sectionHeader: {
+  panelHeader: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "18px",
-    gap: "15px",
+    alignItems: "flex-start",
+    gap: 15,
   },
 
-  sectionTitle: {
+  panelTitle: {
     margin: 0,
-    fontSize: "20px",
-    color: "#111827",
+    fontSize: 17,
+    fontWeight: 750,
   },
 
-  textButton: {
-    border: "none",
-    background: "transparent",
-    color: "#2563eb",
-    cursor: "pointer",
-    fontWeight: "600",
-  },
-
-  tableWrapper: {
-    width: "100%",
-    overflowX: "auto",
-  },
-
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    minWidth: "750px",
-  },
-
-  th: {
-    textAlign: "left",
-    padding: "13px 12px",
-    borderBottom:
-      "1px solid #e5e7eb",
+  panelDescription: {
+    margin: "5px 0 0",
     color: "#64748b",
-    fontSize: "12px",
-    textTransform: "uppercase",
-    letterSpacing: "0.5px",
+    fontSize: 12,
   },
 
-  td: {
-    padding: "15px 12px",
-    borderBottom:
-      "1px solid #f1f5f9",
-    color: "#334155",
-    fontSize: "14px",
+  statusBadge: {
+    background: "#ecfdf5",
+    color: "#047857",
+    borderRadius: 20,
+    padding: "6px 10px",
+    fontSize: 11,
+    fontWeight: 700,
   },
 
-  status: {
-    display: "inline-block",
-    padding: "5px 9px",
-    borderRadius: "999px",
-    fontSize: "12px",
-    fontWeight: "700",
-  },
-
-  empty: {
-    padding: "35px",
-    textAlign: "center",
-    color: "#64748b",
-  },
-
-  centerPage: {
-    minHeight: "100vh",
+  referralBox: {
+    marginTop: 22,
+    padding: 18,
+    borderRadius: 12,
+    background: "#f8fafc",
     display: "flex",
-    justifyContent: "center",
     alignItems: "center",
-    background: "#f5f7fb",
-    padding: "20px",
+    justifyContent: "space-between",
+    gap: 15,
   },
 
-  loadingText: {
+  smallLabel: {
+    display: "block",
     color: "#64748b",
-    fontSize: "16px",
+    fontSize: 11,
+    marginBottom: 4,
   },
 
-  messageCard: {
-    background: "#fff",
-    padding: "35px",
-    borderRadius: "14px",
-    maxWidth: "450px",
-    width: "100%",
-    textAlign: "center",
-    boxShadow:
-      "0 4px 20px rgba(0,0,0,0.08)",
-  },
-
-  errorCard: {
-    background: "#fff",
-    padding: "35px",
-    borderRadius: "14px",
-    maxWidth: "500px",
-    width: "100%",
-    textAlign: "center",
-    boxShadow:
-      "0 4px 20px rgba(0,0,0,0.08)",
-  },
-
-  messageTitle: {
-    marginTop: 0,
-    color: "#111827",
-  },
-
-  messageText: {
-    color: "#64748b",
-    lineHeight: 1.6,
-    marginBottom: "20px",
+  bonusAmount: {
+    fontSize: 25,
   },
 
   primaryButton: {
     border: "none",
-    borderRadius: "9px",
-    padding: "12px 20px",
     background: "#111827",
     color: "#fff",
+    padding: "11px 15px",
+    borderRadius: 9,
+    fontWeight: 700,
     cursor: "pointer",
-    fontWeight: "600",
+  },
+
+  secondaryButton: {
+    border: "1px solid #dbe2ea",
+    background: "#fff",
+    color: "#172033",
+    padding: "9px 13px",
+    borderRadius: 9,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+
+  statusList: {
+    marginTop: 18,
+  },
+
+  statusRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    padding: "12px 0",
+    borderBottom: "1px solid #f1f5f9",
+    fontSize: 13,
+  },
+
+  online: {
+    color: "#059669",
+    fontWeight: 700,
+    fontSize: 12,
+  },
+
+  sandbox: {
+    color: "#d97706",
+    fontWeight: 700,
+    fontSize: 12,
+  },
+
+  emptyState: {
+    textAlign: "center",
+    padding: "45px 20px",
+  },
+
+  emptyIcon: {
+    fontSize: 34,
+    marginBottom: 8,
+  },
+
+  emptyTitle: {
+    margin: "5px 0",
+    fontSize: 16,
+  },
+
+  emptyText: {
+    maxWidth: 450,
+    margin: "7px auto 0",
+    color: "#64748b",
+    fontSize: 12,
+    lineHeight: 1.6,
+  },
+
+  footer: {
+    textAlign: "center",
+    color: "#94a3b8",
+    fontSize: 11,
+    marginTop: 30,
   },
 };
+
+export default AdminDashboard;

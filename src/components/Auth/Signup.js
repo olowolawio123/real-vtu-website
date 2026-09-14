@@ -17,10 +17,16 @@ import { useNavigate } from "react-router-dom";
 const Signup = () => {
   const navigate = useNavigate();
 
+  // Allow referral links such as:
+  // /signup?ref=ILABC12345
+  const referralFromUrl =
+    new URLSearchParams(window.location.search).get("ref") || "";
+
   const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
+    referralCode: referralFromUrl.toUpperCase(),
   });
 
   const [loading, setLoading] = useState(false);
@@ -40,6 +46,7 @@ const Signup = () => {
 
     const name = form.name.trim();
     const email = form.email.trim();
+    const referralCode = form.referralCode.trim().toUpperCase();
 
     if (!name) {
       toast.error("Please enter your full name.");
@@ -69,26 +76,76 @@ const Signup = () => {
           form.password
         );
 
+      const user = userCred.user;
+
       // Save user's name to Firebase Authentication
-      await updateProfile(userCred.user, {
+      await updateProfile(user, {
         displayName: name,
       });
 
-      // Create / update user's Firestore wallet profile
+      // Generate this user's own referral code
+      const ownReferralCode =
+        `IL${user.uid.slice(0, 8).toUpperCase()}`;
+
+      // Create user's Firestore profile
       await setDoc(
-        doc(db, "users", userCred.user.uid),
+        doc(db, "users", user.uid),
         {
-          uid: userCred.user.uid,
+          uid: user.uid,
           name: name,
-          email: userCred.user.email || email,
+          email: user.email || email,
+
+          // Wallet
           wallet: 0,
+          walletBalance: 0,
+
+          // Referral system
+          referralCode: ownReferralCode,
+          referredByCode: referralCode || null,
+          referralBonusProcessed: false,
+          referralBonusEarned: 0,
+          referralCount: 0,
+
           createdAt: serverTimestamp(),
         },
         { merge: true }
       );
 
+      // If a referral code was supplied, let the backend
+      // securely connect this user to the referrer.
+      if (referralCode) {
+        try {
+          const apiUrl =
+            process.env.REACT_APP_API_URL ||
+            "http://localhost:5000";
+
+          const idToken = await user.getIdToken();
+
+await fetch(
+  `${apiUrl}/api/referrals/attach`,
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({
+      referralCode: referralCode,
+    }),
+  }
+);
+        } catch (referralError) {
+          // Do not block account creation if referral
+          // attachment fails. The account already exists.
+          console.error(
+            "Referral attachment error:",
+            referralError
+          );
+        }
+      }
+
       // Send verification email
-      await sendEmailVerification(userCred.user);
+      await sendEmailVerification(user);
 
       toast.success(
         "Account created successfully. Please check your email to verify your account."
@@ -152,13 +209,27 @@ const Signup = () => {
 
       const googleUser = result.user;
 
+      const ownReferralCode =
+        `IL${googleUser.uid.slice(0, 8).toUpperCase()}`;
+
       await setDoc(
         doc(db, "users", googleUser.uid),
         {
           uid: googleUser.uid,
           name: googleUser.displayName || "",
           email: googleUser.email || "",
+
+          // Wallet
           wallet: 0,
+          walletBalance: 0,
+
+          // Referral system
+          referralCode: ownReferralCode,
+          referredByCode: null,
+          referralBonusProcessed: false,
+          referralBonusEarned: 0,
+          referralCount: 0,
+
           createdAt: serverTimestamp(),
         },
         { merge: true }
@@ -458,6 +529,39 @@ const Signup = () => {
               </small>
             </div>
 
+            {/* REFERRAL CODE */}
+            <div className="signup-field">
+              <label>
+                Referral Code{" "}
+                <span className="optional-label">
+                  (Optional)
+                </span>
+              </label>
+
+              <div className="signup-input-wrapper">
+                <span className="signup-input-icon">
+                  🎁
+                </span>
+
+                <input
+                  type="text"
+                  name="referralCode"
+                  value={form.referralCode}
+                  onChange={handleChange}
+                  placeholder="Enter referral code"
+                  autoComplete="off"
+                  style={{
+                    textTransform: "uppercase",
+                  }}
+                />
+              </div>
+
+              <small className="signup-password-help">
+                If someone referred you, enter
+                their referral code here.
+              </small>
+            </div>
+
             {/* CREATE ACCOUNT */}
             <button
               type="submit"
@@ -513,6 +617,7 @@ const Signup = () => {
               </p>
             </div>
           </div>
+
         </div>
       </div>
 
@@ -762,6 +867,11 @@ const Signup = () => {
             font-weight: 700;
             color: #132b52;
             margin-bottom: 8px;
+          }
+
+          .optional-label {
+            color: #8a98ad;
+            font-weight: 500;
           }
 
           .signup-input-wrapper {

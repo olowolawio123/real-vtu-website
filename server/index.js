@@ -68,6 +68,8 @@ const vtuRoute = require("./routes/vtu");
 const transactionsRoute = require("./routes/transactions");
 const adminRoute = require("./routes/admin");
 const transactionPinRoute = require("./routes/transactionPin");
+const referralRoutes = require("./routes/referrals");
+
 
 app.post(
   "/api/paystack/webhook",
@@ -92,6 +94,7 @@ app.use("/api/vtu", vtuRoute);
 app.use("/api/transactions", transactionsRoute);
 app.use("/api/admin", adminRoute);
 app.use("/api", transactionPinRoute);
+app.use("/api/referrals", referralRoutes);
 
 app.listen(port, () => {
   console.log(
