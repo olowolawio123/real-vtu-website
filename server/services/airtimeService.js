@@ -1,5 +1,9 @@
 const axios = require("axios");
 
+const VTU_PROVIDER = String(
+  process.env.VTU_PROVIDER || "vtunaija"
+).toLowerCase();
+
 const VTU_MODE = process.env.VTU_MODE || "sandbox";
 
 const VTU_BASE_URL =
@@ -8,6 +12,13 @@ const VTU_BASE_URL =
     : process.env.VTU_LIVE_BASE_URL;
 
 const VTU_API_KEY = process.env.VTU_API_KEY;
+
+const CHEAPDATAHUB_BASE_URL =
+  process.env.CHEAPDATAHUB_BASE_URL ||
+  "https://www.cheapdatahub.ng/api/v1/resellers";
+
+const CHEAPDATAHUB_API_KEY =
+  process.env.CHEAPDATAHUB_API_KEY;
 
 function getVtuHeaders() {
   if (!VTU_API_KEY) {
@@ -20,7 +31,55 @@ function getVtuHeaders() {
   };
 }
 
-async function purchaseAirtime({
+function getCheapDataHubHeaders() {
+  if (!CHEAPDATAHUB_API_KEY) {
+    throw new Error("CheapDataHub API key is missing");
+  }
+
+  return {
+    Authorization: `Bearer ${CHEAPDATAHUB_API_KEY}`,
+    "Content-Type": "application/json",
+  };
+}
+
+/*
+ * CheapDataHub provider IDs can be configured in .env.
+ *
+ * Example:
+ * CHEAPDATAHUB_AIRTIME_PROVIDER_IDS={"mtn":1,"glo":2,"airtel":3,"9mobile":4}
+ *
+ * We do not hard-code provider IDs because they are provider-specific.
+ */
+function getCheapDataHubProviderId(network) {
+  const raw =
+    process.env.CHEAPDATAHUB_AIRTIME_PROVIDER_IDS || "{}";
+
+  let mapping;
+
+  try {
+    mapping = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      "CHEAPDATAHUB_AIRTIME_PROVIDER_IDS contains invalid JSON"
+    );
+  }
+
+  const key = String(network || "")
+    .trim()
+    .toLowerCase();
+
+  const providerId = mapping[key];
+
+  if (!providerId) {
+    throw new Error(
+      `CheapDataHub airtime provider ID is not configured for ${network}`
+    );
+  }
+
+  return Number(providerId);
+}
+
+async function purchaseVtuNaijaAirtime({
   network,
   mobileNumber,
   amount,
@@ -47,6 +106,51 @@ async function purchaseAirtime({
   );
 
   return response.data;
+}
+
+async function purchaseCheapDataHubAirtime({
+  network,
+  mobileNumber,
+  amount,
+}) {
+  const providerId = getCheapDataHubProviderId(network);
+
+  const response = await axios.post(
+    `${CHEAPDATAHUB_BASE_URL}/airtime/purchase/`,
+    {
+      provider_id: providerId,
+      phone_number: mobileNumber,
+      amount: Number(amount),
+    },
+    {
+      headers: getCheapDataHubHeaders(),
+      timeout: 30000,
+    }
+  );
+
+  return response.data;
+}
+
+async function purchaseAirtime({
+  network,
+  mobileNumber,
+  amount,
+  requestId,
+}) {
+  if (VTU_PROVIDER === "cheapdatahub") {
+    return purchaseCheapDataHubAirtime({
+      network,
+      mobileNumber,
+      amount,
+    });
+  }
+
+  return purchaseVtuNaijaAirtime({
+    network,
+    mobileNumber,
+    amount,
+    requestId,
+  });
 }
 
 module.exports = {
