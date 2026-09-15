@@ -131,6 +131,9 @@ router.use((req, res, next) => {
 /*
  * ADMIN DASHBOARD SUMMARY
  */
+/*
+ * ADMIN DASHBOARD SUMMARY
+ */
 
 router.get("/dashboard", async (req, res) => {
   try {
@@ -146,77 +149,69 @@ router.get("/dashboard", async (req, res) => {
       cableTvOrdersSnapshot,
     ] = await Promise.all([
       db.collection("users").get(),
-
       db.collection("walletPayments").get(),
-
       db.collection("walletTransactions").get(),
-
       db.collection("dataOrders").get(),
-
       db.collection("airtimeOrders").get(),
-
       db.collection("electricityOrders").get(),
-
       db.collection("cableTvOrders").get(),
     ]);
+
+    // =====================================================
+    // WALLET
+    // =====================================================
 
     let totalWalletFunding = 0;
     let successfulWalletFunding = 0;
 
-    walletPaymentsSnapshot.forEach(
-      (doc) => {
-        const data = doc.data();
+    walletPaymentsSnapshot.forEach((doc) => {
+      const data = doc.data();
 
-        const amount = numberOrZero(
-          data.amount
-        );
+      const amount = numberOrZero(data.amount);
 
-        totalWalletFunding += amount;
+      totalWalletFunding += amount;
 
-        const status =
-          normalizeStatus(data.status);
+      const status = normalizeStatus(data.status);
 
-        if (status === "successful") {
-          successfulWalletFunding += amount;
-        }
+      if (status === "successful") {
+        successfulWalletFunding += amount;
       }
-    );
+    });
 
     let totalWalletDebits = 0;
     let totalRefunds = 0;
 
-    walletTransactionsSnapshot.forEach(
-      (doc) => {
-        const data = doc.data();
+    walletTransactionsSnapshot.forEach((doc) => {
+      const data = doc.data();
 
-        const amount = Math.abs(
-          numberOrZero(data.amount)
-        );
+      const amount = Math.abs(
+        numberOrZero(data.amount)
+      );
 
-        const type = String(
-          data.type || ""
-        ).toLowerCase();
+      const type = String(
+        data.type || ""
+      ).toLowerCase();
 
-        if (type === "debit") {
-          totalWalletDebits += amount;
-        }
-
-        if (type === "refund") {
-          totalRefunds += amount;
-        }
+      if (type === "debit") {
+        totalWalletDebits += amount;
       }
-    );
 
-    const countSuccessful = (
-      snapshot
-    ) => {
+      if (type === "refund") {
+        totalRefunds += amount;
+      }
+    });
+
+    // =====================================================
+    // SERVICE HELPERS
+    // =====================================================
+
+    const countSuccessful = (snapshot) => {
       let count = 0;
 
       snapshot.forEach((doc) => {
-        const status =
-          normalizeStatus(
-            doc.data().status
-          );
+        const status = normalizeStatus(
+          doc.data().status
+        );
 
         if (status === "successful") {
           count += 1;
@@ -226,16 +221,13 @@ router.get("/dashboard", async (req, res) => {
       return count;
     };
 
-    const countProcessing = (
-      snapshot
-    ) => {
+    const countProcessing = (snapshot) => {
       let count = 0;
 
       snapshot.forEach((doc) => {
-        const status =
-          normalizeStatus(
-            doc.data().status
-          );
+        const status = normalizeStatus(
+          doc.data().status
+        );
 
         if (status === "processing") {
           count += 1;
@@ -245,16 +237,13 @@ router.get("/dashboard", async (req, res) => {
       return count;
     };
 
-    const countFailed = (
-      snapshot
-    ) => {
+    const countFailed = (snapshot) => {
       let count = 0;
 
       snapshot.forEach((doc) => {
-        const status =
-          normalizeStatus(
-            doc.data().status
-          );
+        const status = normalizeStatus(
+          doc.data().status
+        );
 
         if (status === "failed") {
           count += 1;
@@ -264,6 +253,192 @@ router.get("/dashboard", async (req, res) => {
       return count;
     };
 
+    // =====================================================
+    // PROFIT CALCULATION
+    // =====================================================
+const DATA_MARKUP = 50;
+const CABLE_MARKUP = 50;
+const ELECTRICITY_MARKUP = 150;
+
+// CheapDataHub airtime discounts
+const AIRTIME_DISCOUNTS = {
+  MTN: 0.025,
+  GLO: 0.04,
+  AIRTEL: 0.01,
+  "9MOBILE": 0.025,
+};
+    let totalSales = 0;
+    let totalProviderCost = 0;
+    let totalProfit = 0;
+
+    let dataSales = 0;
+    let dataProviderCost = 0;
+    let dataProfit = 0;
+
+    let airtimeSales = 0;
+    let airtimeProviderCost = 0;
+    let airtimeProfit = 0;
+
+    let electricitySales = 0;
+    let electricityProviderCost = 0;
+    let electricityProfit = 0;
+
+    let cableSales = 0;
+    let cableProviderCost = 0;
+    let cableProfit = 0;
+
+    let todayProfit = 0;
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const processOrders = (
+      snapshot,
+      service
+    ) => {
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+
+        const status = normalizeStatus(
+          data.status
+        );
+
+        // Only successful transactions count
+        // as completed sales/profit.
+        if (status !== "successful") {
+          return;
+        }
+
+        const sellingPrice = numberOrZero(
+          data.amount ??
+          data.sellingPrice ??
+          data.planAmount
+        );
+
+        if (sellingPrice <= 0) {
+          return;
+        }
+
+        let providerCost = sellingPrice;
+        let profit = 0;
+
+        if (service === "data") {
+          providerCost =
+            Math.max(
+              0,
+              sellingPrice - DATA_MARKUP
+            );
+
+          profit =
+            sellingPrice - providerCost;
+
+          dataSales += sellingPrice;
+          dataProviderCost += providerCost;
+          dataProfit += profit;
+        }
+
+       if (service === "airtime") {
+  const network =
+    String(data.network || "")
+      .toUpperCase()
+      .replace(/\s+/g, "");
+
+  const discountRate =
+    AIRTIME_DISCOUNTS[network] || 0;
+
+  profit =
+    sellingPrice * discountRate;
+
+  providerCost =
+    sellingPrice - profit;
+
+  airtimeSales += sellingPrice;
+  airtimeProviderCost += providerCost;
+  airtimeProfit += profit;
+}
+
+        if (service === "electricity") {
+          providerCost =
+            Math.max(
+              0,
+              sellingPrice - ELECTRICITY_MARKUP
+            );
+
+          profit =
+            sellingPrice - providerCost;
+
+          electricitySales += sellingPrice;
+          electricityProviderCost += providerCost;
+          electricityProfit += profit;
+        }
+
+        if (service === "cabletv") {
+          providerCost =
+            Math.max(
+              0,
+              sellingPrice - CABLE_MARKUP
+            );
+
+          profit =
+            sellingPrice - providerCost;
+
+          cableSales += sellingPrice;
+          cableProviderCost += providerCost;
+          cableProfit += profit;
+        }
+
+        totalSales += sellingPrice;
+        totalProviderCost += providerCost;
+        totalProfit += profit;
+
+        // Today's profit
+        const createdAt = data.createdAt;
+
+        const createdMillis =
+          timestampToMillis(createdAt);
+
+        if (
+          createdMillis >=
+          todayStart.getTime()
+        ) {
+          todayProfit += profit;
+        }
+      });
+    };
+
+    processOrders(
+      dataOrdersSnapshot,
+      "data"
+    );
+
+    processOrders(
+      airtimeOrdersSnapshot,
+      "airtime"
+    );
+
+    processOrders(
+      electricityOrdersSnapshot,
+      "electricity"
+    );
+
+    processOrders(
+      cableTvOrdersSnapshot,
+      "cabletv"
+    );
+
+    // =====================================================
+    // PROFIT MARGIN
+    // =====================================================
+
+    const profitMargin =
+      totalSales > 0
+        ? (totalProfit / totalSales) * 100
+        : 0;
+
+    // =====================================================
+    // RESPONSE
+    // =====================================================
+
     return res.status(200).json({
       success: true,
 
@@ -271,6 +446,8 @@ router.get("/dashboard", async (req, res) => {
         users: {
           total: usersSnapshot.size,
         },
+
+    
 
         wallet: {
           totalFunding:
@@ -284,6 +461,99 @@ router.get("/dashboard", async (req, res) => {
 
           totalRefunds:
             totalRefunds,
+        },
+
+        profit: {
+          totalSales:
+            Number(totalSales.toFixed(2)),
+
+          totalProviderCost:
+            Number(
+              totalProviderCost.toFixed(2)
+            ),
+
+          totalProfit:
+            Number(
+              totalProfit.toFixed(2)
+            ),
+
+          todayProfit:
+            Number(
+              todayProfit.toFixed(2)
+            ),
+
+          profitMargin:
+            Number(
+              profitMargin.toFixed(2)
+            ),
+
+          data: {
+            sales:
+              Number(
+                dataSales.toFixed(2)
+              ),
+
+            providerCost:
+              Number(
+                dataProviderCost.toFixed(2)
+              ),
+
+            profit:
+              Number(
+                dataProfit.toFixed(2)
+              ),
+          },
+
+          airtime: {
+            sales:
+              Number(
+                airtimeSales.toFixed(2)
+              ),
+
+            providerCost:
+              Number(
+                airtimeProviderCost.toFixed(2)
+              ),
+
+            profit:
+              Number(
+                airtimeProfit.toFixed(2)
+              ),
+          },
+
+          electricity: {
+            sales:
+              Number(
+                electricitySales.toFixed(2)
+              ),
+
+            providerCost:
+              Number(
+                electricityProviderCost.toFixed(2)
+              ),
+
+            profit:
+              Number(
+                electricityProfit.toFixed(2)
+              ),
+          },
+
+          cableTv: {
+            sales:
+              Number(
+                cableSales.toFixed(2)
+              ),
+
+            providerCost:
+              Number(
+                cableProviderCost.toFixed(2)
+              ),
+
+            profit:
+              Number(
+                cableProfit.toFixed(2)
+              ),
+          },
         },
 
         services: {
