@@ -29,6 +29,9 @@ const CableTvPurchase = () => {
   const [smartCardNumber, setSmartCardNumber] =
     useState("");
 
+  const [phoneNumber, setPhoneNumber] =
+    useState("");
+
   const [customer, setCustomer] =
     useState(null);
 
@@ -49,6 +52,9 @@ const CableTvPurchase = () => {
 
   const [transactionPin, setTransactionPin] =
     useState("");
+
+  const [providerMode, setProviderMode] =
+    useState("vtunaija");
 
   // =====================================================
   // LOAD CABLE TV PLANS
@@ -80,17 +86,168 @@ const CableTvPurchase = () => {
           }
         );
 
-        const cablePlans =
-          response.data?.data?.dataplans ||
-          response.data?.dataplans ||
-          [];
+        const responseData = response.data || {};
 
-        setPlans(cablePlans);
+console.log(
+  "CABLE TV FULL API RESPONSE:",
+  responseData
+);
 
-        if (cablePlans.length > 0) {
+// -----------------------------------------------------
+// Detect provider from all possible response wrappers
+// -----------------------------------------------------
+
+const detectedProvider = String(
+  responseData?.provider ||
+    responseData?.data?.provider ||
+    responseData?.data?.data?.provider ||
+    responseData?.result?.provider ||
+    "vtunaija"
+).toLowerCase();
+
+console.log(
+  "DETECTED CABLE PROVIDER:",
+  detectedProvider
+);
+
+setProviderMode(
+  detectedProvider
+);
+
+// -----------------------------------------------------
+// Find cable plans from all possible response wrappers
+// -----------------------------------------------------
+
+let rawPlans =
+  responseData?.data?.dataplans ||
+  responseData?.data?.data?.dataplans ||
+  responseData?.dataplans ||
+  responseData?.data?.plans ||
+  responseData?.data?.data ||
+  responseData?.plans ||
+  [];
+
+// Make sure it is actually an array
+if (!Array.isArray(rawPlans)) {
+  rawPlans = [];
+}
+
+console.log(
+  "RAW CABLE PLANS:",
+  rawPlans
+);
+
+console.log(
+  "RAW CABLE PLAN COUNT:",
+  rawPlans.length
+);
+
+        /*
+         * Normalize both providers into one
+         * frontend format.
+         */
+        const normalizedPlans =
+          rawPlans
+            .map((plan) => {
+              if (
+  detectedProvider ===
+  "cheapdatahub"
+) {
+  return {
+    cabletv_plan_id:
+      plan.plan_id,
+
+    plan_id:
+      plan.plan_id,
+
+    the_cabletv_name:
+      plan.cable ||
+      plan.the_cabletv_name ||
+      plan.provider_name ||
+      "",
+
+    size:
+      plan.plan_name ||
+      plan.size ||
+      "",
+
+    plan_name:
+      plan.plan_name ||
+      plan.size ||
+      "",
+
+    price_for_basicuser:
+      Number(
+        plan.price_for_basicuser ||
+        plan.sellingPrice ||
+        plan.price ||
+        0
+      ),
+
+    provider_price:
+      Number(
+        plan.provider_price ||
+        plan.price ||
+        0
+      ),
+
+    duration:
+      Number(
+        plan.duration ||
+        30
+      ),
+
+    provider:
+      "cheapdatahub",
+  };
+}
+
+              return {
+                ...plan,
+
+                cabletv_plan_id:
+                  plan.cabletv_plan_id,
+
+                plan_id:
+                  plan.cabletv_plan_id,
+
+                the_cabletv_name:
+                  plan.the_cabletv_name,
+
+                size:
+                  plan.size,
+
+                price_for_basicuser:
+                  Number(
+                    plan.price_for_basicuser ||
+                      0
+                  ),
+
+                duration:
+                  plan.duration,
+
+                provider:
+                  "vtunaija",
+              };
+            })
+            .filter(
+              (plan) =>
+                plan.the_cabletv_name &&
+                Number(
+                  plan.price_for_basicuser
+                ) > 0
+            );
+
+        setPlans(
+          normalizedPlans
+        );
+
+        if (
+          normalizedPlans.length > 0
+        ) {
           setSelectedProvider(
-            cablePlans[0].the_cabletv_name ||
-              ""
+            normalizedPlans[0]
+              .the_cabletv_name || ""
           );
         }
       } catch (error) {
@@ -126,10 +283,18 @@ const CableTvPurchase = () => {
   // =====================================================
 
   useEffect(() => {
+    let unsubscribeWallet = null;
+
     const unsubscribeAuth =
       auth.onAuthStateChanged((user) => {
         if (!user) {
           setWalletBalance(0);
+
+          if (unsubscribeWallet) {
+            unsubscribeWallet();
+            unsubscribeWallet = null;
+          }
+
           return;
         }
 
@@ -139,7 +304,7 @@ const CableTvPurchase = () => {
           user.uid
         );
 
-        const unsubscribeWallet =
+        unsubscribeWallet =
           onSnapshot(
             userRef,
             (snapshot) => {
@@ -148,7 +313,9 @@ const CableTvPurchase = () => {
                   snapshot.data() || {};
 
                 setWalletBalance(
-                  Number(data.wallet || 0)
+                  Number(
+                    data.wallet || 0
+                  )
                 );
               }
             },
@@ -159,12 +326,15 @@ const CableTvPurchase = () => {
               );
             }
           );
-
-        return () =>
-          unsubscribeWallet();
       });
 
-    return () => unsubscribeAuth();
+    return () => {
+      if (unsubscribeWallet) {
+        unsubscribeWallet();
+      }
+
+      unsubscribeAuth();
+    };
   }, []);
 
   // =====================================================
@@ -180,9 +350,13 @@ const CableTvPurchase = () => {
 
       if (
         provider &&
-        !uniqueProviders.includes(provider)
+        !uniqueProviders.includes(
+          provider
+        )
       ) {
-        uniqueProviders.push(provider);
+        uniqueProviders.push(
+          provider
+        );
       }
     });
 
@@ -218,6 +392,7 @@ const CableTvPurchase = () => {
     setSelectedPlan(null);
     setCustomer(null);
     setReceipt(null);
+    setSmartCardNumber("");
   };
 
   // =====================================================
@@ -272,7 +447,11 @@ const CableTvPurchase = () => {
         return;
       }
 
-      if (!/^\d+$/.test(cleanSmartCard)) {
+      if (
+        !/^\d+$/.test(
+          cleanSmartCard
+        )
+      ) {
         toast.error(
           "Smart Card / IUC number must contain only numbers"
         );
@@ -286,6 +465,36 @@ const CableTvPurchase = () => {
         return;
       }
 
+      /*
+       * CheapDataHub currently does not expose
+       * the verification endpoint we use for
+       * VTU Naija.
+       *
+       * Therefore verification is not required
+       * when CheapDataHub is active.
+       */
+      if (
+        providerMode ===
+        "cheapdatahub"
+      ) {
+        setCustomer({
+          verificationUnavailable:
+            true,
+
+          customerName:
+            "Verification unavailable",
+
+          smartCardNumber:
+            cleanSmartCard,
+        });
+
+        toast.info(
+          "CheapDataHub does not currently provide customer verification. Please confirm your Smart Card number before subscribing."
+        );
+
+        return;
+      }
+
       try {
         setVerifying(true);
         setCustomer(null);
@@ -294,9 +503,11 @@ const CableTvPurchase = () => {
           await user.getIdToken();
 
         const cableName =
-          selectedProvider === "GOTV"
+          selectedProvider ===
+          "GOTV"
             ? "1"
-            : selectedProvider === "DSTV"
+            : selectedProvider ===
+              "DSTV"
             ? "2"
             : selectedProvider ===
               "STARTIMES"
@@ -349,7 +560,9 @@ const CableTvPurchase = () => {
           return;
         }
 
-        setCustomer(providerData);
+        setCustomer(
+          providerData
+        );
 
         toast.success(
           "Customer verified successfully"
@@ -410,11 +623,71 @@ const CableTvPurchase = () => {
         return;
       }
 
-      if (!customer) {
+      if (
+        !/^\d+$/.test(
+          cleanSmartCard
+        )
+      ) {
         toast.error(
-          "Verify the customer before subscribing"
+          "Smart Card / IUC number must contain only numbers"
         );
         return;
+      }
+
+      /*
+       * CheapDataHub requires a phone number.
+       */
+      if (
+        providerMode ===
+        "cheapdatahub"
+      ) {
+        const cleanPhone =
+          phoneNumber.trim();
+
+        if (!cleanPhone) {
+          toast.error(
+            "Enter your phone number"
+          );
+          return;
+        }
+
+        if (
+          !/^\d{10,15}$/.test(
+            cleanPhone
+          )
+        ) {
+          toast.error(
+            "Enter a valid phone number"
+          );
+          return;
+        }
+
+        /*
+         * For CheapDataHub, verification is
+         * intentionally not required.
+         */
+        if (!customer) {
+          setCustomer({
+            verificationUnavailable:
+              true,
+
+            customerName:
+              "Verification unavailable",
+
+            smartCardNumber:
+              cleanSmartCard,
+          });
+        }
+      } else {
+        /*
+         * VTU Naija still requires verification.
+         */
+        if (!customer) {
+          toast.error(
+            "Verify the customer before subscribing"
+          );
+          return;
+        }
       }
 
       const amount =
@@ -423,7 +696,9 @@ const CableTvPurchase = () => {
         );
 
       if (
-        !Number.isFinite(amount) ||
+        !Number.isFinite(
+          amount
+        ) ||
         amount <= 0
       ) {
         toast.error(
@@ -432,7 +707,9 @@ const CableTvPurchase = () => {
         return;
       }
 
-      if (amount > walletBalance) {
+      if (
+        amount > walletBalance
+      ) {
         toast.error(
           "Insufficient wallet balance"
         );
@@ -459,7 +736,11 @@ const CableTvPurchase = () => {
         return;
       }
 
-      if (!/^\d{4}$/.test(transactionPin)) {
+      if (
+        !/^\d{4}$/.test(
+          transactionPin
+        )
+      ) {
         toast.error(
           "Enter your 4-digit transaction PIN"
         );
@@ -473,16 +754,64 @@ const CableTvPurchase = () => {
         return;
       }
 
+      const cleanSmartCard =
+        smartCardNumber.trim();
+
+      if (!cleanSmartCard) {
+        toast.error(
+          "Enter your Smart Card / IUC number"
+        );
+        return;
+      }
+
+      let cleanPhone = "";
+
+      if (
+        providerMode ===
+        "cheapdatahub"
+      ) {
+        cleanPhone =
+          phoneNumber.trim();
+
+        if (!cleanPhone) {
+          toast.error(
+            "Enter your phone number"
+          );
+          return;
+        }
+
+        if (
+          !/^\d{10,15}$/.test(
+            cleanPhone
+          )
+        ) {
+          toast.error(
+            "Enter a valid phone number"
+          );
+          return;
+        }
+      }
+
       try {
         setPurchasing(true);
 
         const idToken =
           await user.getIdToken();
 
+        /*
+         * VTU Naija expects:
+         * 1 = GOTV
+         * 2 = DSTV
+         * 3 = STARTIMES
+         *
+         * CheapDataHub uses the plan ID directly.
+         */
         const cableName =
-          selectedProvider === "GOTV"
+          selectedProvider ===
+          "GOTV"
             ? "1"
-            : selectedProvider === "DSTV"
+            : selectedProvider ===
+              "DSTV"
             ? "2"
             : selectedProvider ===
               "STARTIMES"
@@ -494,8 +823,21 @@ const CableTvPurchase = () => {
             selectedPlan.price_for_basicuser
           );
 
-        const cleanSmartCard =
-          smartCardNumber.trim();
+        /*
+         * IMPORTANT:
+         *
+         * VTU Naija:
+         * cablePlan = cabletv_plan_id
+         *
+         * CheapDataHub:
+         * cablePlan = plan_id
+         *
+         * We normalized both fields earlier,
+         * so cabletv_plan_id contains the correct
+         * value for both providers.
+         */
+        const cablePlan =
+          selectedPlan.cabletv_plan_id;
 
         const response =
           await axios.post(
@@ -506,10 +848,15 @@ const CableTvPurchase = () => {
               smartCardNumber:
                 cleanSmartCard,
 
-              cablePlan:
-                selectedPlan.cabletv_plan_id,
+              cablePlan,
 
               amount,
+
+              phone:
+                providerMode ===
+                "cheapdatahub"
+                  ? cleanPhone
+                  : undefined,
 
               transactionPin,
             },
@@ -523,6 +870,23 @@ const CableTvPurchase = () => {
 
         const result =
           response.data;
+
+        /*
+         * Pending / unknown provider response.
+         */
+        if (
+          result?.pending
+        ) {
+          toast.warning(
+            result?.message ||
+              "Your Cable TV request is being checked. Please do not purchase again yet."
+          );
+
+          setTransactionPin("");
+          setShowPinModal(false);
+
+          return;
+        }
 
         if (!result?.success) {
           toast.error(
@@ -552,6 +916,10 @@ const CableTvPurchase = () => {
           smartCardNumber:
             cleanSmartCard,
 
+          phone:
+            cleanPhone ||
+            null,
+
           amount,
 
           duration:
@@ -577,7 +945,8 @@ const CableTvPurchase = () => {
         );
 
         if (
-          error.response?.status === 401
+          error.response?.status ===
+          401
         ) {
           toast.error(
             error.response?.data?.message ||
@@ -585,6 +954,21 @@ const CableTvPurchase = () => {
           );
 
           setTransactionPin("");
+
+          return;
+        }
+
+        if (
+          error.response?.status ===
+          202
+        ) {
+          toast.warning(
+            error.response?.data?.message ||
+              "Your Cable TV request is being checked. Please do not purchase again yet."
+          );
+
+          setTransactionPin("");
+          setShowPinModal(false);
 
           return;
         }
@@ -623,21 +1007,41 @@ const CableTvPurchase = () => {
   if (loadingPlans) {
     return (
       <div style={styles.page}>
-        <div style={styles.loadingCard}>
-          <div style={styles.loadingIcon}>
+        <div
+          style={
+            styles.loadingCard
+          }
+        >
+          <div
+            style={
+              styles.loadingIcon
+            }
+          >
             📺
           </div>
 
-          <h2 style={styles.loadingTitle}>
+          <h2
+            style={
+              styles.loadingTitle
+            }
+          >
             Loading Cable TV
           </h2>
 
-          <p style={styles.loadingText}>
+          <p
+            style={
+              styles.loadingText
+            }
+          >
             Getting the latest subscription
             packages...
           </p>
 
-          <div style={styles.spinner} />
+          <div
+            style={
+              styles.spinner
+            }
+          />
         </div>
       </div>
     );
@@ -655,32 +1059,58 @@ const CableTvPurchase = () => {
 
         <div style={styles.header}>
           <div>
-            <div style={styles.brandBadge}>
+            <div
+              style={
+                styles.brandBadge
+              }
+            >
               INSTANT LOAD
             </div>
 
-            <h1 style={styles.title}>
+            <h1
+              style={styles.title}
+            >
               Cable TV
             </h1>
 
-            <p style={styles.subtitle}>
+            <p
+              style={
+                styles.subtitle
+              }
+            >
               Subscribe to your favourite
               Cable TV package instantly.
             </p>
           </div>
 
-          <div style={styles.walletCard}>
-            <div style={styles.walletTop}>
+          <div
+            style={
+              styles.walletCard
+            }
+          >
+            <div
+              style={
+                styles.walletTop
+              }
+            >
               <span>
                 Wallet Balance
               </span>
 
-              <span style={styles.walletIcon}>
+              <span
+                style={
+                  styles.walletIcon
+                }
+              >
                 ₦
               </span>
             </div>
 
-            <strong style={styles.walletAmount}>
+            <strong
+              style={
+                styles.walletAmount
+              }
+            >
               ₦
               {formatMoney(
                 walletBalance
@@ -696,12 +1126,22 @@ const CableTvPurchase = () => {
           {/* PROVIDER */}
 
           <div style={styles.section}>
-            <label style={styles.label}>
+            <label
+              style={styles.label}
+            >
               Cable TV Provider
             </label>
 
-            <div style={styles.selectWrapper}>
-              <span style={styles.selectIcon}>
+            <div
+              style={
+                styles.selectWrapper
+              }
+            >
+              <span
+                style={
+                  styles.selectIcon
+                }
+              >
                 📺
               </span>
 
@@ -737,7 +1177,11 @@ const CableTvPurchase = () => {
           {/* PROVIDER QUICK CHOICES */}
 
           {providers.length > 0 && (
-            <div style={styles.providerTiles}>
+            <div
+              style={
+                styles.providerTiles
+              }
+            >
               {providers.map(
                 (provider) => {
                   const active =
@@ -764,9 +1208,14 @@ const CableTvPurchase = () => {
                         setReceipt(
                           null
                         );
+
+                        setSmartCardNumber(
+                          ""
+                        );
                       }}
                       style={{
                         ...styles.providerTile,
+
                         ...(active
                           ? styles.providerTileActive
                           : {}),
@@ -775,6 +1224,7 @@ const CableTvPurchase = () => {
                       <span
                         style={{
                           ...styles.providerTileIcon,
+
                           ...(active
                             ? styles.providerTileIconActive
                             : {}),
@@ -796,12 +1246,22 @@ const CableTvPurchase = () => {
           {/* PLAN */}
 
           <div style={styles.section}>
-            <label style={styles.label}>
+            <label
+              style={styles.label}
+            >
               Select Package
             </label>
 
-            <div style={styles.selectWrapper}>
-              <span style={styles.selectIcon}>
+            <div
+              style={
+                styles.selectWrapper
+              }
+            >
+              <span
+                style={
+                  styles.selectIcon
+                }
+              >
                 ⭐
               </span>
 
@@ -850,19 +1310,39 @@ const CableTvPurchase = () => {
           {/* PLAN SUMMARY */}
 
           {selectedPlan && (
-            <div style={styles.planCard}>
-              <div style={styles.planHeader}>
+            <div
+              style={
+                styles.planCard
+              }
+            >
+              <div
+                style={
+                  styles.planHeader
+                }
+              >
                 <div>
-                  <span style={styles.planEyebrow}>
+                  <span
+                    style={
+                      styles.planEyebrow
+                    }
+                  >
                     SELECTED PACKAGE
                   </span>
 
-                  <h3 style={styles.planTitle}>
+                  <h3
+                    style={
+                      styles.planTitle
+                    }
+                  >
                     {selectedPlan.size}
                   </h3>
                 </div>
 
-                <div style={styles.planPrice}>
+                <div
+                  style={
+                    styles.planPrice
+                  }
+                >
                   ₦
                   {formatMoney(
                     selectedPlan.price_for_basicuser
@@ -870,9 +1350,21 @@ const CableTvPurchase = () => {
                 </div>
               </div>
 
-              <div style={styles.planDetails}>
-                <div style={styles.planDetail}>
-                  <span style={styles.detailIcon}>
+              <div
+                style={
+                  styles.planDetails
+                }
+              >
+                <div
+                  style={
+                    styles.planDetail
+                  }
+                >
+                  <span
+                    style={
+                      styles.detailIcon
+                    }
+                  >
                     📺
                   </span>
 
@@ -891,8 +1383,16 @@ const CableTvPurchase = () => {
                   </div>
                 </div>
 
-                <div style={styles.planDetail}>
-                  <span style={styles.detailIcon}>
+                <div
+                  style={
+                    styles.planDetail
+                  }
+                >
+                  <span
+                    style={
+                      styles.detailIcon
+                    }
+                  >
                     📅
                   </span>
 
@@ -920,11 +1420,17 @@ const CableTvPurchase = () => {
           {/* SMART CARD */}
 
           <div style={styles.section}>
-            <label style={styles.label}>
+            <label
+              style={styles.label}
+            >
               Smart Card / IUC Number
             </label>
 
-            <div style={styles.inputRow}>
+            <div
+              style={
+                styles.inputRow
+              }
+            >
               <div
                 style={
                   styles.inputWrapper
@@ -978,6 +1484,7 @@ const CableTvPurchase = () => {
                 }
                 style={{
                   ...styles.verifyButton,
+
                   ...(verifying
                     ? styles.disabledButton
                     : {}),
@@ -992,6 +1499,11 @@ const CableTvPurchase = () => {
                     />
                     Verifying
                   </>
+                ) : providerMode ===
+                  "cheapdatahub" ? (
+                  <>
+                    ✓ Confirm
+                  </>
                 ) : (
                   <>
                     ✓ Verify
@@ -1000,19 +1512,114 @@ const CableTvPurchase = () => {
               </button>
             </div>
 
-            <div style={styles.sandboxHint}>
-              <span>🧪</span>
-              Sandbox test number:{" "}
-              <strong>
-                1212121212
-              </strong>
+            {providerMode ===
+            "cheapdatahub" ? (
+              <div
+                style={
+                  styles.infoHint
+                }
+              >
+                <span>ℹ️</span>
+
+                <span>
+                  CheapDataHub does not currently
+                  provide Cable TV customer
+                  verification. Please carefully
+                  confirm your Smart Card / IUC
+                  number before subscribing.
+                </span>
+              </div>
+            ) : (
+              <div
+                style={
+                  styles.sandboxHint
+                }
+              >
+                <span>🧪</span>
+
+                Sandbox test number:{" "}
+                <strong>
+                  1212121212
+                </strong>
+              </div>
+            )}
+          </div>
+
+          {/* PHONE NUMBER */}
+
+          <div style={styles.section}>
+            <label
+              style={styles.label}
+            >
+              Phone Number
+              {providerMode ===
+                "cheapdatahub" &&
+                " *"}
+            </label>
+
+            <div
+              style={
+                styles.inputWrapper
+              }
+            >
+              <span
+                style={
+                  styles.inputIcon
+                }
+              >
+                ☎
+              </span>
+
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={
+                  phoneNumber
+                }
+                onChange={(
+                  event
+                ) => {
+                  setPhoneNumber(
+                    event.target.value.replace(
+                      /\D/g,
+                      ""
+                    )
+                  );
+
+                  setReceipt(
+                    null
+                  );
+                }}
+                placeholder="Enter phone number"
+                maxLength={15}
+                style={
+                  styles.input
+                }
+              />
+            </div>
+
+            <div
+              style={
+                styles.phoneHint
+              }
+            >
+              {providerMode ===
+              "cheapdatahub"
+                ? "Required for Cable TV subscription."
+                : "Phone number for your transaction record."}
             </div>
           </div>
 
           {/* CUSTOMER */}
 
           {customer && (
-            <div style={styles.customerCard}>
+            <div
+              style={
+                customer.verificationUnavailable
+                  ? styles.customerInfoCard
+                  : styles.customerCard
+              }
+            >
               <div
                 style={
                   styles.customerHeader
@@ -1020,19 +1627,27 @@ const CableTvPurchase = () => {
               >
                 <div
                   style={
-                    styles.customerCheck
+                    customer.verificationUnavailable
+                      ? styles.customerInfoIcon
+                      : styles.customerCheck
                   }
                 >
-                  ✓
+                  {customer.verificationUnavailable
+                    ? "ℹ"
+                    : "✓"}
                 </div>
 
                 <div>
                   <strong
                     style={
-                      styles.customerTitle
+                      customer.verificationUnavailable
+                        ? styles.customerInfoTitle
+                        : styles.customerTitle
                     }
                   >
-                    Customer Verified
+                    {customer.verificationUnavailable
+                      ? "Ready for Subscription"
+                      : "Customer Verified"}
                   </strong>
 
                   <span
@@ -1040,69 +1655,81 @@ const CableTvPurchase = () => {
                       styles.customerSubtitle
                     }
                   >
-                    Customer details confirmed
+                    {customer.verificationUnavailable
+                      ? "Please make sure your Smart Card / IUC number is correct."
+                      : "Customer details confirmed"}
                   </span>
                 </div>
               </div>
 
-              <div
-                style={
-                  styles.customerGrid
-                }
-              >
-                <div>
-                  <span
-                    style={
-                      styles.detailLabel
-                    }
-                  >
-                    Customer Name
-                  </span>
+              {!customer.verificationUnavailable && (
+                <div
+                  style={
+                    styles.customerGrid
+                  }
+                >
+                  <div>
+                    <span
+                      style={
+                        styles.detailLabel
+                      }
+                    >
+                      Customer Name
+                    </span>
 
-                  <strong>
-                    {customer.Customer_Name ||
-                      customer.name ||
-                      "N/A"}
-                  </strong>
+                    <strong>
+                      {customer.Customer_Name ||
+                        customer.name ||
+                        "N/A"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span
+                      style={
+                        styles.detailLabel
+                      }
+                    >
+                      Smart Card / IUC
+                    </span>
+
+                    <strong>
+                      {smartCardNumber}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span
+                      style={
+                        styles.detailLabel
+                      }
+                    >
+                      Address
+                    </span>
+
+                    <strong>
+                      {customer.Customer_Address ||
+                        customer.address ||
+                        "N/A"}
+                    </strong>
+                  </div>
                 </div>
-
-                <div>
-                  <span
-                    style={
-                      styles.detailLabel
-                    }
-                  >
-                    Smart Card / IUC
-                  </span>
-
-                  <strong>
-                    {smartCardNumber}
-                  </strong>
-                </div>
-
-                <div>
-                  <span
-                    style={
-                      styles.detailLabel
-                    }
-                  >
-                    Address
-                  </span>
-
-                  <strong>
-                    {customer.Customer_Address ||
-                      customer.address ||
-                      "N/A"}
-                  </strong>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
           {/* PURCHASE */}
 
-          <div style={styles.purchaseArea}>
-            <div style={styles.purchaseSummary}>
+          <div
+            style={
+              styles.purchaseArea
+            }
+          >
+            <div
+              style={
+                styles.purchaseSummary
+              }
+            >
               <div>
                 <span
                   style={
@@ -1125,7 +1752,11 @@ const CableTvPurchase = () => {
                 </strong>
               </div>
 
-              <div style={styles.balanceMini}>
+              <div
+                style={
+                  styles.balanceMini
+                }
+              >
                 <span>
                   Balance
                 </span>
@@ -1147,16 +1778,27 @@ const CableTvPurchase = () => {
               disabled={
                 purchasing ||
                 !selectedPlan ||
-                !customer ||
+                (providerMode !==
+                  "cheapdatahub" &&
+                  !customer) ||
+                (providerMode ===
+                  "cheapdatahub" &&
+                  !phoneNumber.trim()) ||
                 Number(
                   selectedPlan?.price_for_basicuser
                 ) > walletBalance
               }
               style={{
                 ...styles.purchaseButton,
+
                 ...(purchasing ||
                 !selectedPlan ||
-                !customer ||
+                (providerMode !==
+                  "cheapdatahub" &&
+                  !customer) ||
+                (providerMode ===
+                  "cheapdatahub" &&
+                  !phoneNumber.trim()) ||
                 Number(
                   selectedPlan?.price_for_basicuser
                 ) > walletBalance
@@ -1176,6 +1818,7 @@ const CableTvPurchase = () => {
               ) : (
                 <>
                   Subscribe Now
+
                   <span
                     style={
                       styles.arrow
@@ -1206,7 +1849,11 @@ const CableTvPurchase = () => {
         {/* RECEIPT */}
 
         {receipt && (
-          <div style={styles.receipt}>
+          <div
+            style={
+              styles.receipt
+            }
+          >
             <div
               style={
                 styles.receiptTop
@@ -1304,6 +1951,22 @@ const CableTvPurchase = () => {
                 </strong>
               </div>
 
+              {receipt.phone && (
+                <div>
+                  <span
+                    style={
+                      styles.detailLabel
+                    }
+                  >
+                    Phone
+                  </span>
+
+                  <strong>
+                    {receipt.phone}
+                  </strong>
+                </div>
+              )}
+
               <div>
                 <span
                   style={
@@ -1374,34 +2037,63 @@ const CableTvPurchase = () => {
         {/* PIN MODAL */}
 
         {showPinModal && (
-          <div style={styles.pinOverlay}>
-            <div style={styles.pinModal}>
-
+          <div
+            style={
+              styles.pinOverlay
+            }
+          >
+            <div
+              style={
+                styles.pinModal
+              }
+            >
               <button
                 type="button"
                 onClick={() => {
                   if (!purchasing) {
-                    setShowPinModal(false);
-                    setTransactionPin("");
+                    setShowPinModal(
+                      false
+                    );
+
+                    setTransactionPin(
+                      ""
+                    );
                   }
                 }}
-                style={styles.pinClose}
-                disabled={purchasing}
+                style={
+                  styles.pinClose
+                }
+                disabled={
+                  purchasing
+                }
               >
                 ×
               </button>
 
-              <div style={styles.pinIcon}>
+              <div
+                style={
+                  styles.pinIcon
+                }
+              >
                 🔐
               </div>
 
-              <h2 style={styles.pinTitle}>
+              <h2
+                style={
+                  styles.pinTitle
+                }
+              >
                 Confirm Subscription
               </h2>
 
-              <p style={styles.pinText}>
-                Enter your 4-digit transaction PIN
-                to complete this Cable TV subscription.
+              <p
+                style={
+                  styles.pinText
+                }
+              >
+                Enter your 4-digit transaction
+                PIN to complete this Cable TV
+                subscription.
               </p>
 
               <input
@@ -1409,22 +2101,36 @@ const CableTvPurchase = () => {
                 inputMode="numeric"
                 maxLength={4}
                 autoFocus
-                value={transactionPin}
-                onChange={(event) => {
+                value={
+                  transactionPin
+                }
+                onChange={(
+                  event
+                ) => {
                   const value =
                     event.target.value.replace(
                       /\D/g,
                       ""
                     );
 
-                  setTransactionPin(value);
+                  setTransactionPin(
+                    value
+                  );
                 }}
                 placeholder="••••"
-                style={styles.pinInput}
-                disabled={purchasing}
+                style={
+                  styles.pinInput
+                }
+                disabled={
+                  purchasing
+                }
               />
 
-              <div style={styles.pinAmount}>
+              <div
+                style={
+                  styles.pinAmount
+                }
+              >
                 ₦
                 {formatMoney(
                   selectedPlan?.price_for_basicuser ||
@@ -1439,12 +2145,15 @@ const CableTvPurchase = () => {
                 }
                 disabled={
                   purchasing ||
-                  transactionPin.length !== 4
+                  transactionPin.length !==
+                    4
                 }
                 style={{
                   ...styles.pinConfirmButton,
+
                   ...(purchasing ||
-                  transactionPin.length !== 4
+                  transactionPin.length !==
+                    4
                     ? styles.pinConfirmDisabled
                     : {}),
                 }}
@@ -1463,7 +2172,11 @@ const CableTvPurchase = () => {
                 )}
               </button>
 
-              <p style={styles.pinSecurity}>
+              <p
+                style={
+                  styles.pinSecurity
+                }
+              >
                 🔒 Your transaction PIN is securely
                 verified before your wallet is debited.
               </p>
@@ -1474,30 +2187,59 @@ const CableTvPurchase = () => {
         {/* TRUST */}
 
         <div style={styles.trust}>
-          <div style={styles.trustItem}>
+          <div
+            style={
+              styles.trustItem
+            }
+          >
             <span>🔒</span>
-            <span>Secure payment</span>
+            <span>
+              Secure payment
+            </span>
           </div>
 
-          <div style={styles.trustItem}>
+          <div
+            style={
+              styles.trustItem
+            }
+          >
             <span>⚡</span>
-            <span>Instant processing</span>
+            <span>
+              Instant processing
+            </span>
           </div>
 
-          <div style={styles.trustItem}>
+          <div
+            style={
+              styles.trustItem
+            }
+          >
             <span>✓</span>
-            <span>Reliable service</span>
+            <span>
+              Reliable service
+            </span>
           </div>
         </div>
 
-        {/* SANDBOX */}
+        {/* PROVIDER NOTICE */}
 
-        <div style={styles.sandboxNotice}>
-          <span>🧪</span>
+        <div
+          style={
+            styles.sandboxNotice
+          }
+        >
+          <span>
+            {providerMode ===
+            "cheapdatahub"
+              ? "ℹ️"
+              : "🧪"}
+          </span>
 
           <span>
-            Cable TV services are currently
-            running in sandbox mode.
+            {providerMode ===
+            "cheapdatahub"
+              ? "Cable TV is being processed through CheapDataHub."
+              : "Cable TV services are currently running in VTU Naija sandbox mode."}
           </span>
         </div>
       </div>
@@ -1873,10 +2615,41 @@ const styles = {
     fontSize: "12px",
   },
 
+  infoHint: {
+    marginTop: "9px",
+    padding:
+      "10px 12px",
+    background: "#eff6ff",
+    border:
+      "1px solid #bfdbfe",
+    borderRadius: "10px",
+    color: "#1e40af",
+    fontSize: "12px",
+    lineHeight: 1.5,
+    display: "flex",
+    gap: "8px",
+    alignItems: "flex-start",
+  },
+
+  phoneHint: {
+    marginTop: "7px",
+    color: "#6b7280",
+    fontSize: "12px",
+  },
+
   customerCard: {
     background: "#ecfdf5",
     border:
       "1px solid #a7f3d0",
+    borderRadius: "17px",
+    padding: "20px",
+    marginBottom: "25px",
+  },
+
+  customerInfoCard: {
+    background: "#eff6ff",
+    border:
+      "1px solid #bfdbfe",
     borderRadius: "17px",
     padding: "20px",
     marginBottom: "25px",
@@ -1902,9 +2675,28 @@ const styles = {
     fontSize: "18px",
   },
 
+  customerInfoIcon: {
+    width: "39px",
+    height: "39px",
+    borderRadius: "12px",
+    background: "#2563eb",
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 900,
+    fontSize: "18px",
+  },
+
   customerTitle: {
     display: "block",
     color: "#047857",
+    fontSize: "15px",
+  },
+
+  customerInfoTitle: {
+    display: "block",
+    color: "#1d4ed8",
     fontSize: "15px",
   },
 

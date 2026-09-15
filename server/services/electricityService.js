@@ -4,14 +4,16 @@ const VTU_PROVIDER = String(
   process.env.VTU_PROVIDER || "vtunaija"
 ).toLowerCase();
 
-const VTU_MODE = process.env.VTU_MODE || "sandbox";
+const VTU_MODE =
+  process.env.VTU_MODE || "sandbox";
 
 const VTU_BASE_URL =
   VTU_MODE === "sandbox"
     ? process.env.VTU_SANDBOX_BASE_URL
     : process.env.VTU_LIVE_BASE_URL;
 
-const VTU_API_KEY = process.env.VTU_API_KEY;
+const VTU_API_KEY =
+  process.env.VTU_API_KEY;
 
 const CHEAPDATAHUB_BASE_URL =
   process.env.CHEAPDATAHUB_BASE_URL ||
@@ -20,9 +22,16 @@ const CHEAPDATAHUB_BASE_URL =
 const CHEAPDATAHUB_API_KEY =
   process.env.CHEAPDATAHUB_API_KEY;
 
+
+/* =========================================================
+   VTU NAIJA HEADERS
+========================================================= */
+
 function getVtuHeaders() {
   if (!VTU_API_KEY) {
-    throw new Error("VTU API key is missing");
+    throw new Error(
+      "VTU API key is missing"
+    );
   }
 
   return {
@@ -31,9 +40,16 @@ function getVtuHeaders() {
   };
 }
 
+
+/* =========================================================
+   CHEAPDATAHUB HEADERS
+========================================================= */
+
 function getCheapDataHubHeaders() {
   if (!CHEAPDATAHUB_API_KEY) {
-    throw new Error("CheapDataHub API key is missing");
+    throw new Error(
+      "CheapDataHub API key is missing"
+    );
   }
 
   return {
@@ -42,63 +58,162 @@ function getCheapDataHubHeaders() {
   };
 }
 
+
+/* =========================================================
+   ELECTRICITY PROVIDERS
+========================================================= */
+
 async function getElectricityPlans() {
-  if (VTU_PROVIDER === "cheapdatahub") {
+
+  /*
+   * CHEAPDATAHUB
+   *
+   * CheapDataHub uses our configured
+   * disco IDs.
+   */
+
+  if (
+    VTU_PROVIDER ===
+    "cheapdatahub"
+  ) {
+
+    const raw =
+      process.env.CHEAPDATAHUB_DISCO_IDS ||
+      "{}";
+
+    let mapping;
+
+    try {
+      mapping =
+        JSON.parse(raw);
+    } catch (error) {
+
+      throw new Error(
+        "CHEAPDATAHUB_DISCO_IDS contains invalid JSON"
+      );
+    }
+
+    const plans =
+      Object.entries(mapping).map(
+        ([name, id]) => ({
+          id: Number(id),
+          disco_id: Number(id),
+          disco_name: name,
+          provider:
+            "cheapdatahub",
+        })
+      );
+
+    console.log(
+      "CheapDataHub electricity providers:",
+      plans
+    );
+
     return {
-      success: false,
-      provider: "cheapdatahub",
+      success: true,
+      provider:
+        "cheapdatahub",
       message:
-        "CheapDataHub electricity provider catalogue is not configured yet.",
+        "CheapDataHub electricity providers loaded successfully.",
+      data: plans,
+      plans: plans,
+      count: plans.length,
     };
   }
 
+
+  /*
+   * VTU NAIJA
+   */
+
   if (!VTU_BASE_URL) {
-    throw new Error("VTU base URL is missing");
+    throw new Error(
+      "VTU base URL is missing"
+    );
   }
 
-  const response = await axios.post(
-    `${VTU_BASE_URL}/api/listelectricity/`,
-    {},
-    {
-      headers: getVtuHeaders(),
-      timeout: 30000,
-    }
-  );
+  const response =
+    await axios.post(
+      `${VTU_BASE_URL}/api/listelectricity/`,
+      {},
+      {
+        headers:
+          getVtuHeaders(),
+        timeout: 30000,
+      }
+    );
 
   return response.data;
 }
+
+
+/* =========================================================
+   ELECTRICITY METER VERIFICATION
+========================================================= */
 
 async function verifyElectricityMeter({
   discoName,
   meterNumber,
 }) {
+
+  /*
+   * CHEAPDATAHUB
+   *
+   * CheapDataHub does not currently
+   * expose a public meter verification
+   * endpoint in the reseller API docs.
+   */
+
   if (VTU_PROVIDER === "cheapdatahub") {
-    return {
-      success: false,
-      provider: "cheapdatahub",
-      message:
-        "CheapDataHub meter verification endpoint is not configured yet.",
-    };
-  }
+  return {
+    success: false,
+    provider: "cheapdatahub",
+    verificationAvailable: false,
+    verificationUnavailable: true,
+    message:
+      "Meter verification is not available through CheapDataHub. The meter will be validated during purchase.",
+    data: {
+      discoName: String(discoName),
+      meterNumber: String(meterNumber),
+    },
+  };
+} 
+
+
+  /*
+   * VTU NAIJA
+   */
 
   if (!VTU_BASE_URL) {
-    throw new Error("VTU base URL is missing");
+    throw new Error(
+      "VTU base URL is missing"
+    );
   }
 
-  const response = await axios.post(
-    `${VTU_BASE_URL}/api/billpayment/verify/`,
-    {
-      disco_name: String(discoName),
-      meter_number: String(meterNumber),
-    },
-    {
-      headers: getVtuHeaders(),
-      timeout: 30000,
-    }
-  );
+  const response =
+    await axios.post(
+      `${VTU_BASE_URL}/api/billpayment/verify/`,
+      {
+        disco_name:
+          String(discoName),
+
+        meter_number:
+          String(meterNumber),
+      },
+      {
+        headers:
+          getVtuHeaders(),
+        timeout: 30000,
+      }
+    );
 
   return response.data;
 }
+
+
+/* =========================================================
+   VTU NAIJA ELECTRICITY PURCHASE
+========================================================= */
 
 async function purchaseVtuNaijaElectricity({
   discoName,
@@ -106,28 +221,47 @@ async function purchaseVtuNaijaElectricity({
   meterType,
   amount,
 }) {
+
   if (!VTU_BASE_URL) {
-    throw new Error("VTU base URL is missing");
+    throw new Error(
+      "VTU base URL is missing"
+    );
   }
 
   try {
-    const response = await axios.post(
-      `${VTU_BASE_URL}/api/billpayment/`,
-      {
-        disco_name: String(discoName),
-        meter_number: String(meterNumber),
-        MeterType: meterType || "prepaid",
-        amount: String(amount),
-      },
-      {
-        headers: getVtuHeaders(),
-        timeout: 30000,
-      }
-    );
+
+    const response =
+      await axios.post(
+        `${VTU_BASE_URL}/api/billpayment/`,
+        {
+          disco_name:
+            String(discoName),
+
+          meter_number:
+            String(meterNumber),
+
+          MeterType:
+            meterType ||
+            "prepaid",
+
+          amount:
+            String(amount),
+        },
+        {
+          headers:
+            getVtuHeaders(),
+          timeout: 30000,
+        }
+      );
 
     return response.data;
+
   } catch (error) {
-    if (error.response?.data) {
+
+    if (
+      error.response?.data
+    ) {
+
       console.error(
         "Electricity provider HTTP response:",
         error.response.data
@@ -140,34 +274,79 @@ async function purchaseVtuNaijaElectricity({
   }
 }
 
-function getCheapDataHubDiscoId(discoName) {
+
+/* =========================================================
+   GET CHEAPDATAHUB DISCO ID
+========================================================= */
+
+function getCheapDataHubDiscoId(
+  discoName
+) {
+
   const raw =
-    process.env.CHEAPDATAHUB_DISCO_IDS || "{}";
+    process.env.CHEAPDATAHUB_DISCO_IDS ||
+    "{}";
 
   let mapping;
 
   try {
-    mapping = JSON.parse(raw);
-  } catch {
+
+    mapping =
+      JSON.parse(raw);
+
+  } catch (error) {
+
     throw new Error(
       "CHEAPDATAHUB_DISCO_IDS contains invalid JSON"
     );
   }
 
-  const key = String(discoName || "")
-    .trim()
-    .toLowerCase();
 
-  const discoId = mapping[key];
+  const key =
+    String(discoName || "")
+      .trim()
+      .toLowerCase();
 
-  if (!discoId) {
+
+  const discoId =
+    mapping[key];
+
+
+  if (
+    discoId === undefined ||
+    discoId === null ||
+    discoId === ""
+  ) {
+
     throw new Error(
       `CheapDataHub electricity provider ID is not configured for ${discoName}`
     );
   }
 
-  return Number(discoId);
+
+  const numericId =
+    Number(discoId);
+
+
+  if (
+    !Number.isFinite(
+      numericId
+    )
+  ) {
+
+    throw new Error(
+      `Invalid CheapDataHub electricity provider ID for ${discoName}`
+    );
+  }
+
+
+  return numericId;
 }
+
+
+/* =========================================================
+   CHEAPDATAHUB ELECTRICITY PURCHASE
+========================================================= */
 
 async function purchaseCheapDataHubElectricity({
   discoName,
@@ -176,25 +355,94 @@ async function purchaseCheapDataHubElectricity({
   amount,
   phone,
 }) {
-  const discoId = getCheapDataHubDiscoId(discoName);
 
-  const response = await axios.post(
-    `${CHEAPDATAHUB_BASE_URL}/electricity/purchase/`,
+  if (!phone) {
+    throw new Error(
+      "Customer phone number is required"
+    );
+  }
+
+
+  const discoId =
+    getCheapDataHubDiscoId(
+      discoName
+    );
+
+
+  console.log(
+    "CheapDataHub electricity purchase:",
     {
-      disco_id: discoId,
-      meter_number: meterNumber,
-      amount: Number(amount),
-      meter_type: meterType || "prepaid",
-      phone: phone || "",
-    },
-    {
-      headers: getCheapDataHubHeaders(),
-      timeout: 30000,
+      discoName,
+      discoId,
+      meterNumber,
+      meterType,
+      amount,
+      phone,
     }
   );
 
-  return response.data;
+
+  try {
+
+    const response =
+      await axios.post(
+        `${CHEAPDATAHUB_BASE_URL}/electricity/purchase/`,
+        {
+          disco_id:
+            discoId,
+
+          meter_number:
+            String(meterNumber),
+
+          amount:
+            Number(amount),
+
+          meter_type:
+            meterType ||
+            "prepaid",
+
+          phone:
+            String(phone),
+        },
+        {
+          headers:
+            getCheapDataHubHeaders(),
+
+          timeout: 30000,
+        }
+      );
+
+
+    return response.data;
+
+  } catch (error) {
+
+    if (
+      error.response?.data
+    ) {
+
+      console.error(
+        "CheapDataHub electricity response:",
+        error.response.data
+      );
+
+      return error.response.data;
+    }
+
+
+    console.error(
+      "CheapDataHub electricity error:",
+      error.message
+    );
+
+    throw error;
+  }
 }
+
+
+/* =========================================================
+   PROVIDER-INDEPENDENT ELECTRICITY PURCHASE
+========================================================= */
 
 async function purchaseElectricity({
   discoName,
@@ -203,7 +451,12 @@ async function purchaseElectricity({
   amount,
   phone,
 }) {
-  if (VTU_PROVIDER === "cheapdatahub") {
+
+  if (
+    VTU_PROVIDER ===
+    "cheapdatahub"
+  ) {
+
     return purchaseCheapDataHubElectricity({
       discoName,
       meterNumber,
@@ -213,6 +466,7 @@ async function purchaseElectricity({
     });
   }
 
+
   return purchaseVtuNaijaElectricity({
     discoName,
     meterNumber,
@@ -221,21 +475,44 @@ async function purchaseElectricity({
   });
 }
 
+
+/* =========================================================
+   ELECTRICITY TRANSACTION QUERY
+========================================================= */
+
 async function queryElectricityTransaction({
   transactionId,
 }) {
-  if (VTU_PROVIDER === "cheapdatahub") {
+
+  /*
+   * CHEAPDATAHUB
+   */
+
+  if (
+    VTU_PROVIDER ===
+    "cheapdatahub"
+  ) {
+
     return {
       success: false,
-      provider: "cheapdatahub",
+      provider:
+        "cheapdatahub",
       message:
-        "CheapDataHub electricity transaction query is handled through transactions/webhooks.",
+        "CheapDataHub electricity transaction status is handled through its transaction/webhook system.",
     };
   }
 
+
+  /*
+   * VTU NAIJA
+   */
+
   if (!VTU_BASE_URL) {
-    throw new Error("VTU base URL is missing");
+    throw new Error(
+      "VTU base URL is missing"
+    );
   }
+
 
   if (!transactionId) {
     throw new Error(
@@ -243,19 +520,33 @@ async function queryElectricityTransaction({
     );
   }
 
-  const response = await axios.get(
-    `${VTU_BASE_URL}/api/queryTransaction/index.php`,
-    {
-      params: {
-        transaction_id: String(transactionId),
-      },
-      headers: getVtuHeaders(),
-      timeout: 30000,
-    }
-  );
+
+  const response =
+    await axios.get(
+      `${VTU_BASE_URL}/api/queryTransaction/index.php`,
+      {
+        params: {
+          transaction_id:
+            String(
+              transactionId
+            ),
+        },
+
+        headers:
+          getVtuHeaders(),
+
+        timeout: 30000,
+      }
+    );
+
 
   return response.data;
 }
+
+
+/* =========================================================
+   EXPORTS
+========================================================= */
 
 module.exports = {
   getElectricityPlans,

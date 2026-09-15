@@ -89,6 +89,27 @@ function isVtuNaijaSandbox() {
   );
 }
 
+function getCustomerPhone(userData = {}) {
+  const possiblePhones = [
+    userData.phone,
+    userData.phoneNumber,
+    userData.mobile,
+    userData.mobileNumber,
+    userData.telephone,
+  ];
+
+  const phone = possiblePhones.find(
+    (value) =>
+      value !== undefined &&
+      value !== null &&
+      String(value).trim() !== ""
+  );
+
+  return phone
+    ? String(phone).trim()
+    : null;
+}
+
 function isValidNigerianPhone(number) {
   return /^\d{11}$/.test(
     String(number || "")
@@ -131,6 +152,7 @@ function isExplicitProviderFailure(response) {
 
 function getProviderResponseFromError(error) {
   return (
+    error?.providerResponse ||
     error?.response?.data ||
     null
   );
@@ -513,16 +535,16 @@ router.post(
        * ONLY VTU NAIJA SANDBOX uses this test number.
        */
       if (
-        isVtuNaijaSandbox() &&
-        String(mobileNumber) !==
-          "08011111111"
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Sandbox testing uses phone number 08011111111.",
-        });
-      }
+  VTU_PROVIDER === "vtunaija" &&
+  isVtuNaijaSandbox() &&
+  String(mobileNumber) !== "08011111111"
+) {
+  return res.status(400).json({
+    success: false,
+    message:
+      "VTU Naija sandbox testing requires the number 08011111111.",
+  });
+}
 
       if (!plan) {
         return res.status(400).json({
@@ -789,20 +811,22 @@ router.post(
 
       try {
         providerResponse =
-          await purchaseData({
-            network:
-              networkId,
+  await purchaseData({
+    network:
+      VTU_PROVIDER === "cheapdatahub"
+        ? normalizedNetwork.toLowerCase()
+        : networkId,
 
-            mobileNumber:
-              String(
-                mobileNumber
-              ),
+    mobileNumber:
+      String(
+        mobileNumber
+      ),
 
-            plan:
-              String(plan),
+    plan:
+      String(plan),
 
-            requestId,
-          });
+    requestId,
+  });
       } catch (
         providerError
       ) {
@@ -1107,8 +1131,7 @@ router.post(
   "/buy-airtime",
   requireAuth,
   async (req, res) => {
-    const uid =
-      req.user.uid;
+    const uid = req.user.uid;
 
     const {
       network,
@@ -1122,27 +1145,31 @@ router.post(
     let requestId = null;
 
     try {
+      // =========================================================
+      // VERIFY TRANSACTION PIN
+      // =========================================================
+
       const pinVerification =
         await verifyTransactionPin(
           uid,
           transactionPin
         );
 
-      if (
-        !pinVerification.success
-      ) {
+      if (!pinVerification.success) {
         return res.status(401).json({
           success: false,
-          message:
-            pinVerification.message,
+          message: pinVerification.message,
         });
       }
+
+      // =========================================================
+      // VALIDATE NETWORK
+      // =========================================================
 
       if (!network) {
         return res.status(400).json({
           success: false,
-          message:
-            "Network is required.",
+          message: "Network is required.",
         });
       }
 
@@ -1152,17 +1179,18 @@ router.post(
           .toUpperCase();
 
       const networkId =
-        NETWORK_IDS[
-          normalizedNetwork
-        ];
+        NETWORK_IDS[normalizedNetwork];
 
       if (!networkId) {
         return res.status(400).json({
           success: false,
-          message:
-            "Invalid network.",
+          message: "Invalid network.",
         });
       }
+
+      // =========================================================
+      // VALIDATE PHONE
+      // =========================================================
 
       if (
         !mobileNumber ||
@@ -1177,7 +1205,13 @@ router.post(
         });
       }
 
+      // =========================================================
+      // VTU NAIJA SANDBOX RESTRICTION
+      // ONLY APPLIES TO VTU NAIJA SANDBOX
+      // =========================================================
+
       if (
+        VTU_PROVIDER === "vtunaija" &&
         isVtuNaijaSandbox() &&
         String(mobileNumber) !==
           "08011111111"
@@ -1185,9 +1219,13 @@ router.post(
         return res.status(400).json({
           success: false,
           message:
-            "Sandbox testing uses phone number 08011111111.",
+            "VTU Naija sandbox testing requires the number 08011111111.",
         });
       }
+
+      // =========================================================
+      // VALIDATE AMOUNT
+      // =========================================================
 
       const purchaseAmount =
         Number(amount);
@@ -1217,6 +1255,10 @@ router.post(
         });
       }
 
+      // =========================================================
+      // FIRESTORE REFERENCES
+      // =========================================================
+
       const userRef =
         db
           .collection("users")
@@ -1224,20 +1266,20 @@ router.post(
 
       orderRef =
         db
-          .collection(
-            "airtimeOrders"
-          )
+          .collection("airtimeOrders")
           .doc();
 
       walletTransactionRef =
         db
-          .collection(
-            "walletTransactions"
-          )
+          .collection("walletTransactions")
           .doc();
 
       requestId =
         generateRequestId();
+
+      // =========================================================
+      // DEBIT USER WALLET
+      // =========================================================
 
       await db.runTransaction(
         async (transaction) => {
@@ -1284,6 +1326,10 @@ router.post(
                 purchaseAmount
               : currentBalance;
 
+          // -----------------------------------------------
+          // UPDATE WALLET
+          // -----------------------------------------------
+
           if (
             WALLET_DEBIT_ENABLED
           ) {
@@ -1300,6 +1346,10 @@ router.post(
               }
             );
           }
+
+          // -----------------------------------------------
+          // CREATE AIRTIME ORDER
+          // -----------------------------------------------
 
           transaction.set(
             orderRef,
@@ -1345,6 +1395,10 @@ router.post(
             }
           );
 
+          // -----------------------------------------------
+          // CREATE WALLET TRANSACTION
+          // -----------------------------------------------
+
           transaction.set(
             walletTransactionRef,
             {
@@ -1388,13 +1442,20 @@ router.post(
         }
       );
 
+      // =========================================================
+      // SEND REQUEST TO PROVIDER
+      // =========================================================
+
       let providerResponse;
 
       try {
         providerResponse =
           await purchaseAirtime({
             network:
-              networkId,
+              VTU_PROVIDER ===
+              "cheapdatahub"
+                ? normalizedNetwork.toLowerCase()
+                : networkId,
 
             mobileNumber:
               String(
@@ -1406,6 +1467,15 @@ router.post(
 
             requestId,
           });
+
+        console.log(
+          "Airtime provider response:",
+          JSON.stringify(
+            providerResponse,
+            null,
+            2
+          )
+        );
       } catch (
         providerError
       ) {
@@ -1419,6 +1489,10 @@ router.post(
           providerErrorData ||
             providerError.message
         );
+
+        // =====================================================
+        // EXPLICIT PROVIDER FAILURE → REFUND
+        // =====================================================
 
         if (
           providerErrorData &&
@@ -1460,6 +1534,10 @@ router.post(
           });
         }
 
+        // =====================================================
+        // PROVIDER RESPONSE UNKNOWN
+        // =====================================================
+
         await orderRef.update({
           status:
             "unknown",
@@ -1489,6 +1567,10 @@ router.post(
         });
       }
 
+      // =========================================================
+      // GET PROVIDER REFERENCE
+      // =========================================================
+
       const providerTransactionId =
         getProviderTransactionId(
           providerResponse
@@ -1499,10 +1581,46 @@ router.post(
           providerResponse
         );
 
+      // =========================================================
+      // DETECT CHEAPDATAHUB STATUS
+      // =========================================================
+
+      const providerStatus = String(
+        providerResponse?.status ??
+        providerResponse?.Status ??
+        providerResponse?.data?.status ??
+        providerResponse?.data?.Status ??
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+      const providerSuccess =
+        providerResponse?.success === true ||
+        providerResponse?.data?.success === true;
+
+      const cheapDataHubSuccess =
+        VTU_PROVIDER ===
+          "cheapdatahub" &&
+        (
+          providerStatus ===
+            "true" ||
+          providerStatus ===
+            "successful" ||
+          providerStatus ===
+            "success" ||
+          providerSuccess === true
+        );
+
+      // =========================================================
+      // EXPLICIT PROVIDER FAILURE
+      // =========================================================
+
       if (
         isExplicitProviderFailure(
           providerResponse
-        )
+        ) &&
+        !cheapDataHubSuccess
       ) {
         await refundOrder({
           orderRef,
@@ -1531,6 +1649,14 @@ router.post(
           providerReference,
 
           providerResponse,
+
+          status:
+            "failed",
+
+          updatedAt:
+            admin.firestore
+              .FieldValue
+              .serverTimestamp(),
         });
 
         return res.status(400).json({
@@ -1546,10 +1672,27 @@ router.post(
         });
       }
 
-      if (
-        !isSuccessfulProviderResponse(
+      // =========================================================
+      // DETERMINE FINAL SUCCESS
+      //
+      // CheapDataHub gets an explicit success check here.
+      // =========================================================
+
+      const genericSuccess =
+        isSuccessfulProviderResponse(
           providerResponse
-        )
+        );
+
+      const transactionSuccessful =
+        cheapDataHubSuccess ||
+        genericSuccess;
+
+      // =========================================================
+      // STILL PROCESSING / UNKNOWN
+      // =========================================================
+
+      if (
+        !transactionSuccessful
       ) {
         await orderRef.update({
           status:
@@ -1581,6 +1724,10 @@ router.post(
             orderRef.id,
         });
       }
+
+      // =========================================================
+      // MARK ORDER SUCCESSFUL
+      // =========================================================
 
       await db.runTransaction(
         async (transaction) => {
@@ -1622,6 +1769,10 @@ router.post(
         }
       );
 
+      // =========================================================
+      // SUCCESS RESPONSE
+      // =========================================================
+
       return res.json({
         success: true,
 
@@ -1646,16 +1797,25 @@ router.post(
         error
       );
 
+      // =========================================================
+      // USER NOT FOUND
+      // =========================================================
+
       if (
         error.message ===
         "USER_NOT_FOUND"
       ) {
         return res.status(404).json({
           success: false,
+
           message:
             "User account not found.",
         });
       }
+
+      // =========================================================
+      // INSUFFICIENT BALANCE
+      // =========================================================
 
       if (
         error.message ===
@@ -1663,10 +1823,15 @@ router.post(
       ) {
         return res.status(400).json({
           success: false,
+
           message:
             "Insufficient wallet balance.",
         });
       }
+
+      // =========================================================
+      // INVALID WALLET
+      // =========================================================
 
       if (
         error.message ===
@@ -1674,10 +1839,15 @@ router.post(
       ) {
         return res.status(400).json({
           success: false,
+
           message:
             "Invalid wallet balance.",
         });
       }
+
+      // =========================================================
+      // GENERIC ERROR
+      // =========================================================
 
       return res.status(500).json({
         success: false,
@@ -1735,10 +1905,13 @@ router.post(
   requireAuth,
   async (req, res) => {
     const {
-      discoName,
-      meterNumber,
-    } = req.body;
-
+  discoName,
+  meterNumber,
+  meterType,
+  amount,
+  transactionPin,
+  phone,
+} = req.body;
     try {
       if (!discoName) {
         return res.status(400).json({
@@ -1777,17 +1950,47 @@ router.post(
       }
 
       const providerResponse =
-        await verifyElectricityMeter({
-          discoName:
-            String(discoName),
+  await verifyElectricityMeter({
+    discoName:
+      String(discoName),
 
-          meterNumber:
-            String(meterNumber),
-        });
+    meterNumber:
+      String(meterNumber),
+  });
 
-      return res.json(
-        providerResponse
-      );
+/*
+ * CheapDataHub currently does not expose
+ * a public electricity meter verification
+ * endpoint in its reseller API.
+ *
+ * The actual meter validation happens
+ * during the purchase request.
+ */
+if (
+  VTU_PROVIDER === "cheapdatahub" &&
+  providerResponse?.verificationUnavailable
+) {
+  return res.status(200).json({
+    success: true,
+
+    provider:
+      "cheapdatahub",
+
+    verificationUnavailable:
+      true,
+
+    message:
+      providerResponse.message ||
+      "Meter verification will be completed during purchase.",
+
+    data:
+      providerResponse.data || null,
+  });
+}
+
+return res.json(
+  providerResponse
+);
     } catch (error) {
       console.error(
         "Electricity meter verification error:",
@@ -1808,18 +2011,17 @@ router.post(
 /* ============================================================
    BUY ELECTRICITY
    ============================================================ */
-
 router.post(
   "/buy-electricity",
   requireAuth,
   async (req, res) => {
-    const userId =
-      req.user.uid;
+    const userId = req.user.uid;
 
     const {
       discoName,
       meterNumber,
       meterType,
+      phone,
       amount,
       transactionPin,
     } = req.body;
@@ -1829,47 +2031,52 @@ router.post(
     let requestId = null;
 
     try {
-      const pinVerification =
-        await verifyTransactionPin(
-          userId,
-          transactionPin
-        );
+      // VERIFY TRANSACTION PIN
+      const pinVerification = await verifyTransactionPin(
+        userId,
+        transactionPin
+      );
 
-      if (
-        !pinVerification.success
-      ) {
+      if (!pinVerification.success) {
         return res.status(401).json({
           success: false,
-          message:
-            pinVerification.message,
+          message: pinVerification.message,
         });
       }
 
+      // BASIC VALIDATION
       if (!discoName) {
         return res.status(400).json({
           success: false,
-          message:
-            "Electricity provider is required.",
+          message: "Electricity provider is required.",
         });
       }
 
       if (
         !meterNumber ||
-        !/^\d{10,15}$/.test(
-          String(meterNumber)
-        )
+        !/^\d{10,15}$/.test(String(meterNumber))
       ) {
         return res.status(400).json({
           success: false,
-          message:
-            "Invalid meter number.",
+          message: "Invalid meter number.",
         });
       }
 
+      // PHONE NUMBER ENTERED BY CUSTOMER
+      const customerPhone = String(phone || "").trim();
+
+      if (!/^0\d{10}$/.test(customerPhone)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Please enter a valid 11-digit Nigerian phone number.",
+        });
+      }
+
+      // VTU NAIJA SANDBOX ONLY
       if (
         isVtuNaijaSandbox() &&
-        String(meterNumber) !==
-          "1111111111111"
+        String(meterNumber) !== "1111111111111"
       ) {
         return res.status(400).json({
           success: false,
@@ -1878,27 +2085,20 @@ router.post(
         });
       }
 
-      const electricityAmount =
-        Number(amount);
+      // ELECTRICITY AMOUNT
+      const electricityAmount = Number(amount);
 
       if (
-        !Number.isFinite(
-          electricityAmount
-        ) ||
+        !Number.isFinite(electricityAmount) ||
         electricityAmount <= 0
       ) {
         return res.status(400).json({
           success: false,
-          message:
-            "Invalid electricity amount.",
+          message: "Invalid electricity amount.",
         });
       }
 
-      if (
-        !Number.isInteger(
-          electricityAmount
-        )
-      ) {
+      if (!Number.isInteger(electricityAmount)) {
         return res.status(400).json({
           success: false,
           message:
@@ -1906,237 +2106,175 @@ router.post(
         });
       }
 
-      const pricing =
-        calculateElectricityPrice(
-          electricityAmount
-        );
+      // CALCULATE PRICE
+      const pricing = calculateElectricityPrice(
+        electricityAmount
+      );
 
-      const providerCost =
-        pricing.providerCost;
+      const providerCost = pricing.providerCost;
+      const sellingPrice = pricing.sellingPrice;
 
-      const sellingPrice =
-        pricing.sellingPrice;
-
-      const userRef =
-        db
-          .collection("users")
-          .doc(userId);
+      // FIRESTORE REFERENCES
+      const userRef = db
+        .collection("users")
+        .doc(userId);
 
       const normalizedMeterType =
-        String(meterType)
-          .toLowerCase() ===
-        "postpaid"
+        String(meterType).toLowerCase() === "postpaid"
           ? "postpaid"
           : "prepaid";
 
-      orderRef =
-        db
-          .collection(
-            "electricityOrders"
-          )
-          .doc();
+      orderRef = db
+        .collection("electricityOrders")
+        .doc();
 
-      walletTransactionRef =
-        db
-          .collection(
-            "walletTransactions"
-          )
-          .doc();
+      walletTransactionRef = db
+        .collection("walletTransactions")
+        .doc();
 
-      requestId =
-        generateRequestId();
+      requestId = generateRequestId();
 
-      await db.runTransaction(
-        async (transaction) => {
-          const userSnap =
-            await transaction.get(
-              userRef
-            );
+      // DEBIT WALLET + CREATE PROCESSING ORDER
+      await db.runTransaction(async (transaction) => {
+        const userSnap = await transaction.get(userRef);
 
-          if (!userSnap.exists) {
-            throw new Error(
-              "USER_NOT_FOUND"
-            );
-          }
-
-          const currentBalance =
-            Number(
-              userSnap.data()?.wallet ||
-                0
-            );
-
-          if (
-            !Number.isFinite(
-              currentBalance
-            )
-          ) {
-            throw new Error(
-              "INVALID_WALLET"
-            );
-          }
-
-          if (
-            WALLET_DEBIT_ENABLED &&
-            currentBalance <
-              sellingPrice
-          ) {
-            throw new Error(
-              "INSUFFICIENT_BALANCE"
-            );
-          }
-
-          const newBalance =
-            WALLET_DEBIT_ENABLED
-              ? currentBalance -
-                sellingPrice
-              : currentBalance;
-
-          if (
-            WALLET_DEBIT_ENABLED
-          ) {
-            transaction.update(
-              userRef,
-              {
-                wallet:
-                  newBalance,
-
-                updatedAt:
-                  admin.firestore
-                    .FieldValue
-                    .serverTimestamp(),
-              }
-            );
-          }
-
-          transaction.set(
-            orderRef,
-            {
-              uid: userId,
-
-              orderId:
-                orderRef.id,
-
-              requestId,
-
-              service:
-                "electricity",
-
-              provider:
-                VTU_PROVIDER,
-
-              discoName:
-                String(discoName),
-
-              meterNumber:
-                String(meterNumber),
-
-              meterType:
-                normalizedMeterType,
-
-              amount:
-                sellingPrice,
-
-              providerAmount:
-                providerCost,
-
-              profit:
-                sellingPrice -
-                providerCost,
-
-              debitStatus:
-                WALLET_DEBIT_ENABLED
-                  ? "debited"
-                  : "not_debited",
-
-              status:
-                "processing",
-
-              createdAt:
-                admin.firestore
-                  .FieldValue
-                  .serverTimestamp(),
-            }
-          );
-
-          transaction.set(
-            walletTransactionRef,
-            {
-              uid: userId,
-
-              type:
-                "debit",
-
-              service:
-                "electricity",
-
-              provider:
-                VTU_PROVIDER,
-
-              amount:
-                sellingPrice,
-
-              orderId:
-                orderRef.id,
-
-              requestId,
-
-              balanceBefore:
-                currentBalance,
-
-              balanceAfter:
-                newBalance,
-
-              status:
-                "completed",
-
-              description:
-                `Electricity purchase - ${discoName}`,
-
-              createdAt:
-                admin.firestore
-                  .FieldValue
-                  .serverTimestamp(),
-            }
-          );
+        if (!userSnap.exists) {
+          throw new Error("USER_NOT_FOUND");
         }
-      );
 
+        const userData = userSnap.data() || {};
+
+        const currentBalance = Number(
+          userData.wallet || 0
+        );
+
+        if (!Number.isFinite(currentBalance)) {
+          throw new Error("INVALID_WALLET");
+        }
+
+        if (
+          WALLET_DEBIT_ENABLED &&
+          currentBalance < sellingPrice
+        ) {
+          throw new Error("INSUFFICIENT_BALANCE");
+        }
+
+        const newBalance = WALLET_DEBIT_ENABLED
+          ? currentBalance - sellingPrice
+          : currentBalance;
+
+        // DEBIT USER WALLET
+        if (WALLET_DEBIT_ENABLED) {
+          transaction.update(userRef, {
+            wallet: newBalance,
+            updatedAt:
+              admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+
+        // CREATE ELECTRICITY ORDER
+        transaction.set(orderRef, {
+          uid: userId,
+          orderId: orderRef.id,
+          requestId,
+          service: "electricity",
+          provider: VTU_PROVIDER,
+
+          discoName: String(discoName).trim(),
+
+          meterNumber: String(meterNumber).trim(),
+
+          meterType: normalizedMeterType,
+
+          customerPhone: customerPhone,
+
+          amount: sellingPrice,
+
+          providerAmount: providerCost,
+
+          profit: sellingPrice - providerCost,
+
+          debitStatus: WALLET_DEBIT_ENABLED
+            ? "debited"
+            : "not_debited",
+
+          status: "processing",
+
+          createdAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // CREATE WALLET TRANSACTION
+        transaction.set(walletTransactionRef, {
+          uid: userId,
+
+          type: "debit",
+
+          service: "electricity",
+
+          provider: VTU_PROVIDER,
+
+          amount: sellingPrice,
+
+          orderId: orderRef.id,
+
+          requestId,
+
+          balanceBefore: currentBalance,
+
+          balanceAfter: newBalance,
+
+          status: "completed",
+
+          description:
+            `Electricity purchase - ${discoName}`,
+
+          createdAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+
+      // LOG CUSTOMER PHONE
+      console.log("Electricity customer:", {
+        userId,
+        phone: "present",
+        provider: VTU_PROVIDER,
+        meterNumber: String(meterNumber),
+        discoName: String(discoName),
+      });
+
+      // CALL ELECTRICITY PROVIDER
       let providerResponse;
 
       try {
-        providerResponse =
-          await purchaseElectricity({
-            discoName:
-              String(discoName),
+        providerResponse = await purchaseElectricity({
+          discoName: String(discoName),
 
-            meterNumber:
-              String(meterNumber),
+          meterNumber: String(meterNumber),
 
-            meterType:
-              normalizedMeterType,
+          meterType: normalizedMeterType,
 
-            amount:
-              providerCost,
-          });
-      } catch (
-        providerError
-      ) {
+          amount: providerCost,
+
+          phone: customerPhone,
+        });
+      } catch (providerError) {
         const providerErrorData =
-          getProviderResponseFromError(
-            providerError
-          );
+          getProviderResponseFromError(providerError);
 
         console.error(
           "Electricity provider error:",
-          providerErrorData ||
-            providerError.message
+          JSON.stringify(
+            providerErrorData || providerError.message,
+            null,
+            2
+          )
         );
 
+        // PROVIDER EXPLICIT FAILURE
         if (
           providerErrorData &&
-          isExplicitProviderFailure(
-            providerErrorData
-          )
+          isExplicitProviderFailure(providerErrorData)
         ) {
           await refundOrder({
             orderRef,
@@ -2147,11 +2285,9 @@ router.post(
 
             uid: userId,
 
-            service:
-              "electricity",
+            service: "electricity",
 
-            refundAmount:
-              sellingPrice,
+            refundAmount: sellingPrice,
 
             requestId,
 
@@ -2165,25 +2301,23 @@ router.post(
             message:
               "Electricity purchase failed. Your wallet has been refunded.",
 
+            providerResponse: providerErrorData,
+
             requestId,
 
-            orderId:
-              orderRef.id,
+            orderId: orderRef.id,
           });
         }
 
+        // UNKNOWN PROVIDER RESPONSE
         await orderRef.update({
-          status:
-            "unknown",
+          status: "unknown",
 
           providerError:
-            providerErrorData ||
-            providerError.message,
+            providerErrorData || providerError.message,
 
           updatedAt:
-            admin.firestore
-              .FieldValue
-              .serverTimestamp(),
+            admin.firestore.FieldValue.serverTimestamp(),
         });
 
         return res.status(202).json({
@@ -2196,35 +2330,46 @@ router.post(
 
           requestId,
 
-          orderId:
-            orderRef.id,
+          orderId: orderRef.id,
         });
       }
 
+      // LOG PROVIDER RESPONSE
       console.log(
         "ELECTRICITY PROVIDER RESPONSE:",
-        JSON.stringify(
-          providerResponse,
-          null,
-          2
-        )
+        JSON.stringify(providerResponse, null, 2)
       );
 
+      // PROVIDER DETAILS
       const providerTransactionId =
-        getProviderTransactionId(
-          providerResponse
-        );
+        getProviderTransactionId(providerResponse);
 
       const providerReference =
-        getProviderReference(
-          providerResponse
+        getProviderReference(providerResponse);
+
+      // EXTRACT TOKEN
+      const electricityToken =
+        providerResponse?.electricitytoken ||
+        providerResponse?.token ||
+        providerResponse?.data?.electricitytoken ||
+        providerResponse?.data?.token ||
+        null;
+
+      // EXTRACT UNITS
+      const electricityUnits =
+        providerResponse?.units ||
+        providerResponse?.data?.units ||
+        null;
+
+      // PROVIDER FAILURE CHECK
+      if (
+        isExplicitProviderFailure(providerResponse)
+      ) {
+        console.error(
+          "Electricity provider rejected transaction:",
+          JSON.stringify(providerResponse, null, 2)
         );
 
-      if (
-        isExplicitProviderFailure(
-          providerResponse
-        )
-      ) {
         await refundOrder({
           orderRef,
 
@@ -2234,11 +2379,9 @@ router.post(
 
           uid: userId,
 
-          service:
-            "electricity",
+          service: "electricity",
 
-          refundAmount:
-            sellingPrice,
+          refundAmount: sellingPrice,
 
           requestId,
 
@@ -2247,34 +2390,7 @@ router.post(
         });
 
         await orderRef.update({
-          providerTransactionId,
-
-          providerReference,
-
-          providerResponse,
-        });
-
-        return res.status(400).json({
-          success: false,
-
-          message:
-            "Electricity purchase failed. Your wallet has been refunded.",
-
-          requestId,
-
-          orderId:
-            orderRef.id,
-        });
-      }
-
-      if (
-        !isSuccessfulProviderResponse(
-          providerResponse
-        )
-      ) {
-        await orderRef.update({
-          status:
-            "unknown",
+          status: "failed",
 
           providerTransactionId,
 
@@ -2283,9 +2399,56 @@ router.post(
           providerResponse,
 
           updatedAt:
-            admin.firestore
-              .FieldValue
-              .serverTimestamp(),
+            admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "Electricity purchase failed. Your wallet has been refunded.",
+
+          providerResponse,
+
+          requestId,
+
+          orderId: orderRef.id,
+        });
+      }
+
+      // SUCCESS CHECK
+      const providerSuccess =
+        isSuccessfulProviderResponse(providerResponse);
+
+      // CHEAPDATAHUB SUCCESS CHECK
+      const cheapDataHubSuccess =
+        VTU_PROVIDER === "cheapdatahub" &&
+        (
+          providerResponse?.status === true ||
+          String(
+            providerResponse?.status
+          ).toLowerCase() === "true" ||
+          String(
+            providerResponse?.Status
+          ).toLowerCase() === "successful"
+        );
+
+      const confirmedSuccess =
+        providerSuccess || cheapDataHubSuccess;
+
+      // PROVIDER DID NOT CONFIRM SUCCESS
+      if (!confirmedSuccess) {
+        await orderRef.update({
+          status: "unknown",
+
+          providerTransactionId,
+
+          providerReference,
+
+          providerResponse,
+
+          updatedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
         });
 
         return res.status(202).json({
@@ -2296,68 +2459,90 @@ router.post(
           message:
             "Your electricity purchase is still being processed. Please do not purchase again yet.",
 
+          providerResponse,
+
           requestId,
 
-          orderId:
-            orderRef.id,
+          orderId: orderRef.id,
         });
       }
 
-      const electricityToken =
-        providerResponse?.electricitytoken ||
-        providerResponse?.token ||
-        providerResponse?.data
-          ?.electricitytoken ||
-        providerResponse?.data?.token ||
-        null;
+      // PREPAID MUST HAVE TOKEN
+      if (
+        normalizedMeterType === "prepaid" &&
+        !electricityToken
+      ) {
+        console.error(
+          "Provider reported success but no electricity token was returned:",
+          JSON.stringify(providerResponse, null, 2)
+        );
 
-      await db.runTransaction(
-        async (transaction) => {
-          transaction.update(
-            orderRef,
-            {
-              status:
-                "successful",
+        await orderRef.update({
+          status: "unknown",
 
-              providerTransactionId,
+          providerTransactionId,
 
-              providerReference,
+          providerReference,
 
-              electricityToken,
+          providerResponse,
 
-              providerResponse,
+          updatedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+        });
 
-              completedAt:
-                admin.firestore
-                  .FieldValue
-                  .serverTimestamp(),
+        return res.status(202).json({
+          success: false,
 
-              updatedAt:
-                admin.firestore
-                  .FieldValue
-                  .serverTimestamp(),
-            }
-          );
+          pending: true,
 
-          transaction.update(
-            walletTransactionRef,
-            {
-              status:
-                "successful",
+          message:
+            "The provider reported the request was received, but no electricity token has been returned yet. Please do not purchase again.",
 
-              providerTransactionId,
+          providerTransactionId,
 
-              providerReference,
+          providerReference,
 
-              completedAt:
-                admin.firestore
-                  .FieldValue
-                  .serverTimestamp(),
-            }
-          );
-        }
-      );
+          requestId,
 
+          orderId: orderRef.id,
+        });
+      }
+
+      // CONFIRMED SUCCESS
+      await db.runTransaction(async (transaction) => {
+        transaction.update(orderRef, {
+          status: "successful",
+
+          providerTransactionId,
+
+          providerReference,
+
+          electricityToken,
+
+          electricityUnits,
+
+          providerResponse,
+
+          completedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+
+          updatedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        transaction.update(walletTransactionRef, {
+          status: "successful",
+
+          providerTransactionId,
+
+          providerReference,
+
+          completedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+
+      // RETURN SUCCESS
       return res.json({
         success: true,
 
@@ -2366,24 +2551,21 @@ router.post(
 
         requestId,
 
-        orderId:
-          orderRef.id,
+        orderId: orderRef.id,
 
         providerTransactionId,
 
         providerReference,
 
-        token:
-          electricityToken,
+        token: electricityToken,
 
-        amount:
-          sellingPrice,
+        units: electricityUnits,
 
-        meterNumber:
-          String(meterNumber),
+        amount: sellingPrice,
 
-        meterType:
-          normalizedMeterType,
+        meterNumber: String(meterNumber),
+
+        meterType: normalizedMeterType,
       });
     } catch (error) {
       console.error(
@@ -2392,11 +2574,11 @@ router.post(
       );
 
       if (
-        error.message ===
-        "USER_NOT_FOUND"
+        error.message === "USER_NOT_FOUND"
       ) {
         return res.status(404).json({
           success: false,
+
           message:
             "User wallet was not found.",
         });
@@ -2408,17 +2590,18 @@ router.post(
       ) {
         return res.status(400).json({
           success: false,
+
           message:
             "Insufficient wallet balance.",
         });
       }
 
       if (
-        error.message ===
-        "INVALID_WALLET"
+        error.message === "INVALID_WALLET"
       ) {
         return res.status(400).json({
           success: false,
+
           message:
             "Invalid wallet balance.",
         });
@@ -2438,7 +2621,6 @@ router.post(
     }
   }
 );
-
 /* ============================================================
    CABLE TV PLANS
    ============================================================ */
@@ -2552,32 +2734,62 @@ router.post(
             cleanSmartCardNumber,
         });
 
-      const status =
-        String(
-          providerResponse?.status ||
-            providerResponse?.Status ||
-            providerResponse?.data
-              ?.status ||
-            providerResponse?.data
-              ?.Status ||
-            ""
-        ).toLowerCase();
+      /*
+ * CheapDataHub currently does not expose
+ * a public cable customer verification
+ * endpoint in its reseller API.
+ *
+ * The smart card will be validated during
+ * the actual purchase request.
+ */
+if (
+  VTU_PROVIDER === "cheapdatahub" &&
+  providerResponse?.verificationUnavailable
+) {
+  return res.status(200).json({
+    success: true,
 
-      if (
-        status === "success" ||
-        status === "successful"
-      ) {
-        return res.status(200).json({
-          success: true,
+    provider:
+      "cheapdatahub",
 
-          message:
-            "Cable TV customer verified successfully.",
+    verificationUnavailable:
+      true,
 
-          data:
-            providerResponse,
-        });
-      }
+    message:
+      providerResponse.message ||
+      "Smart card validation will be completed during purchase.",
 
+    data:
+      providerResponse.data || null,
+  });
+}
+
+const status =
+  String(
+    providerResponse?.status ||
+      providerResponse?.Status ||
+      providerResponse?.data
+        ?.status ||
+      providerResponse?.data
+        ?.Status ||
+      ""
+  ).toLowerCase();
+
+if (
+  status === "success" ||
+  status === "successful" ||
+  status === "true"
+) {
+  return res.status(200).json({
+    success: true,
+
+    message:
+      "Cable TV customer verified successfully.",
+
+    data:
+      providerResponse,
+  });
+}
       return res.status(400).json({
         success: false,
 
@@ -2620,8 +2832,7 @@ router.post(
   "/buy-cable-tv",
   requireAuth,
   async (req, res) => {
-    const uid =
-      req.user.uid;
+    const uid = req.user.uid;
 
     const {
       cableName,
@@ -2629,6 +2840,7 @@ router.post(
       cablePlan,
       amount,
       transactionPin,
+      phone,
     } = req.body;
 
     let orderRef = null;
@@ -2636,166 +2848,155 @@ router.post(
     let requestId = null;
 
     try {
-      const pinVerification =
-        await verifyTransactionPin(
-          uid,
-          transactionPin
-        );
+      const pinVerification = await verifyTransactionPin(
+        uid,
+        transactionPin
+      );
 
-      if (
-        !pinVerification.success
-      ) {
+      if (!pinVerification.success) {
         return res.status(401).json({
           success: false,
-
-          message:
-            pinVerification.message,
+          message: pinVerification.message,
         });
       }
 
       if (!cableName) {
         return res.status(400).json({
           success: false,
-
-          message:
-            "Cable TV provider is required.",
+          message: "Cable TV provider is required.",
         });
       }
 
       if (!smartCardNumber) {
         return res.status(400).json({
           success: false,
-
-          message:
-            "Smart card number is required.",
+          message: "Smart card number is required.",
         });
       }
 
       if (!cablePlan) {
         return res.status(400).json({
           success: false,
-
-          message:
-            "Cable TV plan is required.",
+          message: "Cable TV plan is required.",
         });
       }
 
-      const cleanSmartCardNumber =
-        String(
-          smartCardNumber
-        ).trim();
+      const cleanSmartCardNumber = String(
+        smartCardNumber
+      ).trim();
 
-      if (
-        !/^\d+$/.test(
-          cleanSmartCardNumber
-        )
-      ) {
+      if (!/^\d+$/.test(cleanSmartCardNumber)) {
         return res.status(400).json({
           success: false,
-
-          message:
-            "Invalid smart card number.",
+          message: "Invalid smart card number.",
         });
       }
 
+      /*
+       * CheapDataHub is live-only and does not use
+       * the VTU Naija sandbox smart-card number.
+       *
+       * Only enforce 1212121212 when actually using
+       * VTU Naija sandbox.
+       */
       if (
+        VTU_PROVIDER !== "cheapdatahub" &&
         isVtuNaijaSandbox() &&
-        cleanSmartCardNumber !==
-          "1212121212"
+        cleanSmartCardNumber !== "1212121212"
       ) {
         return res.status(400).json({
           success: false,
-
           message:
             "Sandbox testing uses smart card number 1212121212.",
         });
       }
 
-      const purchaseAmount =
-        Number(amount);
+      /*
+       * CheapDataHub requires a phone number
+       * for cable purchases.
+       */
+      let customerPhone = null;
+
+      if (VTU_PROVIDER === "cheapdatahub") {
+        customerPhone = String(phone || "").trim();
+
+        if (!customerPhone) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Customer phone number is required.",
+          });
+        }
+
+        if (!/^\d{10,15}$/.test(customerPhone)) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Invalid customer phone number.",
+          });
+        }
+      }
+
+      const purchaseAmount = Number(amount);
 
       if (
-        !Number.isFinite(
-          purchaseAmount
-        ) ||
+        !Number.isFinite(purchaseAmount) ||
         purchaseAmount <= 0
       ) {
         return res.status(400).json({
           success: false,
-
-          message:
-            "Invalid Cable TV amount.",
+          message: "Invalid Cable TV amount.",
         });
       }
 
-      if (
-        !Number.isInteger(
-          purchaseAmount
-        )
-      ) {
+      if (!Number.isInteger(purchaseAmount)) {
         return res.status(400).json({
           success: false,
-
           message:
             "Cable TV amount must be a whole number.",
         });
       }
 
-      const userRef =
-        db
-          .collection("users")
-          .doc(uid);
+      const userRef = db
+        .collection("users")
+        .doc(uid);
 
-      orderRef =
-        db
-          .collection(
-            "cableTvOrders"
-          )
-          .doc();
+      orderRef = db
+        .collection("cableTvOrders")
+        .doc();
 
-      walletTransactionRef =
-        db
-          .collection(
-            "walletTransactions"
-          )
-          .doc();
+      walletTransactionRef = db
+        .collection("walletTransactions")
+        .doc();
 
-      requestId =
-        generateRequestId();
+      requestId = generateRequestId();
 
+      /*
+       * Debit wallet and create order.
+       */
       await db.runTransaction(
         async (transaction) => {
-          const userSnap =
-            await transaction.get(
-              userRef
-            );
+          const userSnap = await transaction.get(
+            userRef
+          );
 
           if (!userSnap.exists) {
-            throw new Error(
-              "USER_NOT_FOUND"
-            );
+            throw new Error("USER_NOT_FOUND");
           }
 
-          const balance =
-            Number(
-              userSnap.data()
-                ?.wallet || 0
-            );
+          const userData = userSnap.data() || {};
 
-          if (
-            !Number.isFinite(
-              balance
-            )
-          ) {
-            throw new Error(
-              "INVALID_WALLET"
-            );
+          const balance = Number(
+            userData.wallet || 0
+          );
+
+          if (!Number.isFinite(balance)) {
+            throw new Error("INVALID_WALLET");
           }
 
           if (
             WALLET_DEBIT_ENABLED &&
-            balance <
-              purchaseAmount
+            balance < purchaseAmount
           ) {
             throw new Error(
               "INSUFFICIENT_BALANCE"
@@ -2804,22 +3005,17 @@ router.post(
 
           const newBalance =
             WALLET_DEBIT_ENABLED
-              ? balance -
-                purchaseAmount
+              ? balance - purchaseAmount
               : balance;
 
-          if (
-            WALLET_DEBIT_ENABLED
-          ) {
+          if (WALLET_DEBIT_ENABLED) {
             transaction.update(
               userRef,
               {
-                wallet:
-                  newBalance,
+                wallet: newBalance,
 
                 updatedAt:
-                  admin.firestore
-                    .FieldValue
+                  admin.firestore.FieldValue
                     .serverTimestamp(),
               }
             );
@@ -2830,40 +3026,35 @@ router.post(
             {
               uid,
 
-              orderId:
-                orderRef.id,
+              orderId: orderRef.id,
 
               requestId,
 
-              service:
-                "cabletv",
+              service: "cabletv",
 
-              provider:
-                VTU_PROVIDER,
+              provider: VTU_PROVIDER,
 
-              cableName:
-                String(cableName),
+              cableName: String(cableName),
 
               smartCardNumber:
                 cleanSmartCardNumber,
 
-              cablePlan:
-                String(cablePlan),
+              cablePlan: String(cablePlan),
 
-              amount:
-                purchaseAmount,
+              amount: purchaseAmount,
+
+              customerPhone:
+                customerPhone || null,
 
               debitStatus:
                 WALLET_DEBIT_ENABLED
                   ? "debited"
                   : "not_debited",
 
-              status:
-                "processing",
+              status: "processing",
 
               createdAt:
-                admin.firestore
-                  .FieldValue
+                admin.firestore.FieldValue
                   .serverTimestamp(),
             }
           );
@@ -2873,61 +3064,52 @@ router.post(
             {
               uid,
 
-              type:
-                "debit",
+              type: "debit",
 
-              service:
-                "cabletv",
+              service: "cabletv",
 
-              provider:
-                VTU_PROVIDER,
+              provider: VTU_PROVIDER,
 
-              amount:
-                purchaseAmount,
+              amount: purchaseAmount,
 
-              orderId:
-                orderRef.id,
+              orderId: orderRef.id,
 
               requestId,
 
-              balanceBefore:
-                balance,
+              balanceBefore: balance,
 
-              balanceAfter:
-                newBalance,
+              balanceAfter: newBalance,
 
-              status:
-                "completed",
+              status: "completed",
 
               description:
                 `Cable TV purchase - ${cableName}`,
 
               createdAt:
-                admin.firestore
-                  .FieldValue
+                admin.firestore.FieldValue
                   .serverTimestamp(),
             }
           );
         }
       );
 
+      /*
+       * Send purchase to provider.
+       */
       let providerResponse;
 
       try {
-        providerResponse =
-          await purchaseCableTv({
-            cableName:
-              String(cableName),
+        providerResponse = await purchaseCableTv({
+          cableName: String(cableName),
 
-            smartCardNumber:
-              cleanSmartCardNumber,
+          smartCardNumber:
+            cleanSmartCardNumber,
 
-            cablePlan:
-              String(cablePlan),
-          });
-      } catch (
-        providerError
-      ) {
+          cablePlan: String(cablePlan),
+
+          phone: customerPhone,
+        });
+      } catch (providerError) {
         const providerErrorData =
           getProviderResponseFromError(
             providerError
@@ -2939,6 +3121,10 @@ router.post(
             providerError.message
         );
 
+        /*
+         * Explicit provider failure:
+         * refund immediately.
+         */
         if (
           providerErrorData &&
           isExplicitProviderFailure(
@@ -2954,11 +3140,9 @@ router.post(
 
             uid,
 
-            service:
-              "cabletv",
+            service: "cabletv",
 
-            refundAmount:
-              purchaseAmount,
+            refundAmount: purchaseAmount,
 
             requestId,
 
@@ -2974,22 +3158,24 @@ router.post(
 
             requestId,
 
-            orderId:
-              orderRef.id,
+            orderId: orderRef.id,
           });
         }
 
+        /*
+         * Unknown provider/network error.
+         * Keep transaction pending rather than
+         * immediately risking a duplicate purchase.
+         */
         await orderRef.update({
-          status:
-            "unknown",
+          status: "unknown",
 
           providerError:
             providerErrorData ||
             providerError.message,
 
           updatedAt:
-            admin.firestore
-              .FieldValue
+            admin.firestore.FieldValue
               .serverTimestamp(),
         });
 
@@ -3003,10 +3189,18 @@ router.post(
 
           requestId,
 
-          orderId:
-            orderRef.id,
+          orderId: orderRef.id,
         });
       }
+
+      console.log(
+        "Cable TV provider response:",
+        JSON.stringify(
+          providerResponse,
+          null,
+          2
+        )
+      );
 
       const providerTransactionId =
         getProviderTransactionId(
@@ -3018,6 +3212,9 @@ router.post(
           providerResponse
         );
 
+      /*
+       * Explicit provider failure.
+       */
       if (
         isExplicitProviderFailure(
           providerResponse
@@ -3032,11 +3229,9 @@ router.post(
 
           uid,
 
-          service:
-            "cabletv",
+          service: "cabletv",
 
-          refundAmount:
-            purchaseAmount,
+          refundAmount: purchaseAmount,
 
           requestId,
 
@@ -3050,6 +3245,10 @@ router.post(
           providerReference,
 
           providerResponse,
+
+          updatedAt:
+            admin.firestore.FieldValue
+              .serverTimestamp(),
         });
 
         return res.status(400).json({
@@ -3060,19 +3259,40 @@ router.post(
 
           requestId,
 
-          orderId:
-            orderRef.id,
+          orderId: orderRef.id,
         });
       }
 
-      if (
-        !isSuccessfulProviderResponse(
+      /*
+       * CheapDataHub successful response:
+       *
+       * {
+       *   status: "true",
+       *   message: "Cable subscription successful",
+       *   reference: "CDH987654"
+       * }
+       */
+      const cheapDataHubSuccess =
+        VTU_PROVIDER === "cheapdatahub" &&
+        (
+          providerResponse?.status === true ||
+          String(
+            providerResponse?.status || ""
+          ).toLowerCase() === "true"
+        );
+
+      const providerSuccessful =
+        cheapDataHubSuccess ||
+        isSuccessfulProviderResponse(
           providerResponse
-        )
-      ) {
+        );
+
+      /*
+       * Provider did not clearly confirm success.
+       */
+      if (!providerSuccessful) {
         await orderRef.update({
-          status:
-            "unknown",
+          status: "unknown",
 
           providerTransactionId,
 
@@ -3081,8 +3301,7 @@ router.post(
           providerResponse,
 
           updatedAt:
-            admin.firestore
-              .FieldValue
+            admin.firestore.FieldValue
               .serverTimestamp(),
         });
 
@@ -3096,18 +3315,19 @@ router.post(
 
           requestId,
 
-          orderId:
-            orderRef.id,
+          orderId: orderRef.id,
         });
       }
 
+      /*
+       * Mark successful.
+       */
       await db.runTransaction(
         async (transaction) => {
           transaction.update(
             orderRef,
             {
-              status:
-                "successful",
+              status: "successful",
 
               providerTransactionId,
 
@@ -3116,8 +3336,7 @@ router.post(
               providerResponse,
 
               completedAt:
-                admin.firestore
-                  .FieldValue
+                admin.firestore.FieldValue
                   .serverTimestamp(),
             }
           );
@@ -3125,16 +3344,14 @@ router.post(
           transaction.update(
             walletTransactionRef,
             {
-              status:
-                "successful",
+              status: "successful",
 
               providerTransactionId,
 
               providerReference,
 
               completedAt:
-                admin.firestore
-                  .FieldValue
+                admin.firestore.FieldValue
                   .serverTimestamp(),
             }
           );
@@ -3149,18 +3366,15 @@ router.post(
 
         requestId,
 
-        orderId:
-          orderRef.id,
+        orderId: orderRef.id,
 
-        amount:
-          purchaseAmount,
+        amount: purchaseAmount,
 
         providerReference,
 
         providerTransactionId,
 
-        data:
-          providerResponse,
+        data: providerResponse,
       });
     } catch (error) {
       console.error(

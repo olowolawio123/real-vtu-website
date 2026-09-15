@@ -9,7 +9,7 @@ import {
 } from "firebase/firestore";
 import { toast } from "react-toastify";
 
-const ELECTRICITY_MARKUP = 50;
+const ELECTRICITY_MARKUP = 150;
 
 const ElectricityPurchase = () => {
   const [user, setUser] = useState(null);
@@ -19,56 +19,36 @@ const ElectricityPurchase = () => {
 
   const [meterNumber, setMeterNumber] = useState("");
   const [meterType, setMeterType] = useState("prepaid");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [amount, setAmount] = useState("");
 
   const [walletBalance, setWalletBalance] = useState(0);
 
-  const [loadingProviders, setLoadingProviders] =
-    useState(true);
+  const [loadingProviders, setLoadingProviders] = useState(true);
+  const [verifyingMeter, setVerifyingMeter] = useState(false);
+  const [purchasing, setPurchasing] = useState(false);
 
-  const [verifyingMeter, setVerifyingMeter] =
+  const [meterVerified, setMeterVerified] = useState(false);
+  const [meterVerificationUnavailable, setMeterVerificationUnavailable] =
     useState(false);
 
-  const [purchasing, setPurchasing] =
-    useState(false);
+  const [meterDetails, setMeterDetails] = useState(null);
+  const [purchaseResult, setPurchaseResult] = useState(null);
 
-  const [meterVerified, setMeterVerified] =
-    useState(false);
-
-  const [meterDetails, setMeterDetails] =
-    useState(null);
-
-  const [purchaseResult, setPurchaseResult] =
-    useState(null);
-
-  // Transaction PIN
-  const [showPinModal, setShowPinModal] =
-    useState(false);
-
-  const [transactionPin, setTransactionPin] =
-    useState("");
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [transactionPin, setTransactionPin] = useState("");
 
   const apiUrl =
-    process.env.REACT_APP_API_URL ||
-    "http://localhost:5000";
+    process.env.REACT_APP_API_URL || "http://localhost:5000";
 
-  /*
-   * AUTH
-   */
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (authUser) => {
-        setUser(authUser);
-      }
-    );
+    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
+      setUser(authUser);
+    });
 
     return () => unsubscribe();
   }, []);
 
-  /*
-   * LOAD ELECTRICITY PROVIDERS
-   */
   useEffect(() => {
     if (!user) {
       setProviders([]);
@@ -80,15 +60,13 @@ const ElectricityPurchase = () => {
       try {
         setLoadingProviders(true);
 
-        const token =
-          await user.getIdToken();
+        const token = await user.getIdToken();
 
         const response = await axios.get(
           `${apiUrl}/api/vtu/electricity-providers`,
           {
             headers: {
-              Authorization:
-                `Bearer ${token}`,
+              Authorization: `Bearer ${token}`,
             },
           }
         );
@@ -104,147 +82,82 @@ const ElectricityPurchase = () => {
 
         if (Array.isArray(payload)) {
           providerData = payload;
-        } else if (
-          Array.isArray(payload?.dataplans)
-        ) {
-          providerData = payload.dataplans;
-        } else if (
-          Array.isArray(payload?.data)
-        ) {
+        } else if (Array.isArray(payload?.data)) {
           providerData = payload.data;
-        } else if (
-          Array.isArray(payload?.providers)
-        ) {
+        } else if (Array.isArray(payload?.providers)) {
           providerData = payload.providers;
-        } else if (
-          Array.isArray(payload?.electricity)
-        ) {
+        } else if (Array.isArray(payload?.electricity)) {
           providerData = payload.electricity;
-        } else if (
-          Array.isArray(
-            payload?.data?.dataplans
-          )
-        ) {
-          providerData =
-            payload.data.dataplans;
-        } else if (
-          Array.isArray(
-            payload?.data?.providers
-          )
-        ) {
-          providerData =
-            payload.data.providers;
-        } else if (
-          Array.isArray(
-            payload?.data?.electricity
-          )
-        ) {
-          providerData =
-            payload.data.electricity;
-        } else if (
-          Array.isArray(
-            payload?.data?.data
-          )
-        ) {
-          providerData =
-            payload.data.data;
+        } else if (Array.isArray(payload?.data?.providers)) {
+          providerData = payload.data.providers;
+        } else if (Array.isArray(payload?.data?.electricity)) {
+          providerData = payload.data.electricity;
         }
 
-        if (
-          !Array.isArray(providerData) ||
-          providerData.length === 0
-        ) {
+        if (!providerData.length) {
           setProviders([]);
-
-          toast.error(
-            "No electricity providers are available."
-          );
-
+          toast.error("No electricity providers are available.");
           return;
         }
 
-        const normalizedProviders =
-          providerData
-            .map((provider, index) => {
-              if (
-                typeof provider === "string"
-              ) {
-                return {
-                  id: String(index),
-                  name: provider,
-                  value: provider,
-                };
-              }
+        const normalizedProviders = providerData
+          .map((provider, index) => {
+            if (typeof provider === "string") {
+              return {
+                id: String(index),
+                name: provider,
+                value: provider,
+              };
+            }
 
-              const value =
-                provider?.disco_name ||
-                provider?.discoName ||
-                provider?.disco ||
-                provider?.provider ||
-                provider?.service_name ||
-                provider?.name ||
-                provider?.code ||
+            const value =
+              provider?.disco_name ||
+              provider?.discoName ||
+              provider?.disco ||
+              provider?.provider ||
+              provider?.service_name ||
+              provider?.name ||
+              provider?.code ||
+              provider?.id ||
+              "";
+
+            const label =
+              provider?.electricity_name ||
+              provider?.disco_name ||
+              provider?.discoName ||
+              provider?.disco ||
+              provider?.provider ||
+              provider?.service_name ||
+              provider?.name ||
+              provider?.code ||
+              value;
+
+            return {
+              ...provider,
+              id:
                 provider?.electricity_plan_id ||
                 provider?.id ||
-                "";
-
-              const label =
-                provider?.the_electricty_name ||
-                provider?.the_electricity_name ||
-                provider?.electricity_name ||
-                provider?.disco_name ||
-                provider?.discoName ||
-                provider?.disco ||
-                provider?.provider ||
-                provider?.service_name ||
-                provider?.name ||
                 provider?.code ||
-                value;
+                index,
+              name: String(label),
+              value: String(value),
+            };
+          })
+          .filter((provider) => provider.value && provider.name);
 
-              return {
-                ...provider,
-
-                id:
-                  provider?.electricity_plan_id ||
-                  provider?.id ||
-                  provider?.code ||
-                  index,
-
-                name: String(label),
-
-                value: String(value),
-              };
-            })
-            .filter(
-              (provider) =>
-                provider.value &&
-                provider.name
-            );
-
-        setProviders(
-          normalizedProviders
-        );
+        setProviders(normalizedProviders);
       } catch (error) {
         console.error(
           "Electricity providers error:",
-          error.response?.data ||
-            error.message
+          error.response?.data || error.message
         );
 
         setProviders([]);
 
-        if (
-          error.response?.status === 401
-        ) {
-          toast.error(
-            "Your login session has expired. Please log in again."
-          );
-        } else {
-          toast.error(
-            error.response?.data?.message ||
-              "Unable to load electricity providers."
-          );
-        }
+        toast.error(
+          error.response?.data?.message ||
+            "Unable to load electricity providers."
+        );
       } finally {
         setLoadingProviders(false);
       }
@@ -253,9 +166,6 @@ const ElectricityPurchase = () => {
     loadProviders();
   }, [user, apiUrl]);
 
-  /*
-   * WALLET BALANCE
-   */
   useEffect(() => {
     if (!user) {
       setWalletBalance(0);
@@ -264,153 +174,122 @@ const ElectricityPurchase = () => {
 
     const db = getFirestore();
 
-    const userRef = doc(
-      db,
-      "users",
-      user.uid
-    );
+    const userRef = doc(db, "users", user.uid);
 
     const unsubscribe = onSnapshot(
       userRef,
       (snapshot) => {
         if (snapshot.exists()) {
-          const data =
-            snapshot.data();
+          const data = snapshot.data();
 
-          setWalletBalance(
-            Number(data.wallet || 0)
-          );
+          setWalletBalance(Number(data.wallet || 0));
         } else {
           setWalletBalance(0);
         }
       },
       (error) => {
-        console.error(
-          "Wallet listener error:",
-          error
-        );
+        console.error("Wallet listener error:", error);
       }
     );
 
     return () => unsubscribe();
   }, [user]);
 
-  /*
-   * PRICING
-   */
-  const electricityAmount =
-    Number(amount) || 0;
+  const electricityAmount = Number(amount) || 0;
 
   const sellingPrice =
     electricityAmount > 0
-      ? electricityAmount +
-        ELECTRICITY_MARKUP
+      ? electricityAmount + ELECTRICITY_MARKUP
       : 0;
 
-  /*
-   * PROVIDER CHANGE
-   */
-  const handleProviderChange = (
-    e
-  ) => {
-    const value =
-      e.target.value;
+  const handleProviderChange = (e) => {
+    const value = e.target.value;
 
     setDiscoName(value);
-
     setMeterVerified(false);
+    setMeterVerificationUnavailable(false);
     setMeterDetails(null);
     setPurchaseResult(null);
   };
 
-  /*
-   * METER NUMBER CHANGE
-   */
-  const handleMeterNumberChange = (
-    e
-  ) => {
-    const value =
-      e.target.value.replace(
-        /\D/g,
-        ""
-      );
+  const handleMeterNumberChange = (e) => {
+    const value = e.target.value.replace(/\D/g, "");
 
     setMeterNumber(value);
-
     setMeterVerified(false);
+    setMeterVerificationUnavailable(false);
     setMeterDetails(null);
     setPurchaseResult(null);
   };
 
-  /*
-   * VERIFY METER
-   */
+  const handlePhoneNumberChange = (e) => {
+    const value = e.target.value.replace(/\D/g, "");
+
+    setPhoneNumber(value);
+    setPurchaseResult(null);
+  };
+
   const handleVerifyMeter = async () => {
     try {
       if (!user) {
-        toast.error(
-          "Please log in again."
-        );
+        toast.error("Please log in again.");
         return;
       }
 
       if (!discoName) {
-        toast.error(
-          "Please select an electricity provider."
-        );
+        toast.error("Please select an electricity provider.");
         return;
       }
 
-      if (
-        !meterNumber ||
-        !/^\d{10,15}$/.test(
-          String(meterNumber)
-        )
-      ) {
-        toast.error(
-          "Enter a valid meter number."
-        );
+      if (!meterNumber || !/^\d{10,15}$/.test(String(meterNumber))) {
+        toast.error("Enter a valid meter number.");
         return;
       }
 
       setVerifyingMeter(true);
       setMeterVerified(false);
+      setMeterVerificationUnavailable(false);
       setMeterDetails(null);
       setPurchaseResult(null);
 
-      if (
-        String(meterNumber) ===
-        "1111111111111"
-      ) {
-        console.log(
-          "SANDBOX METER DETECTED"
-        );
-      }
+      const token = await user.getIdToken();
 
-      const token =
-        await user.getIdToken();
-
-      const response =
-        await axios.post(
-          `${apiUrl}/api/vtu/verify-electricity-meter`,
-          {
-            discoName,
-            meterNumber:
-              String(meterNumber),
-            meterType,
+      const response = await axios.post(
+        `${apiUrl}/api/vtu/verify-electricity-meter`,
+        {
+          discoName,
+          meterNumber: String(meterNumber),
+          meterType,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
           },
-          {
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
-          }
-        );
+        }
+      );
 
       console.log(
         "METER VERIFICATION RESPONSE:",
         response.data
       );
+
+      if (response.data?.verificationUnavailable === true) {
+        setMeterVerified(true);
+        setMeterVerificationUnavailable(true);
+
+        setMeterDetails({
+          meterNumber: String(meterNumber),
+          meterType,
+          customerName: "",
+        });
+
+        toast.info(
+          response.data?.message ||
+            "Meter verification is unavailable. The meter will be validated during purchase."
+        );
+
+        return;
+      }
 
       if (
         response.data?.success === true ||
@@ -418,10 +297,10 @@ const ElectricityPurchase = () => {
         response.data?.Status === "successful"
       ) {
         setMeterVerified(true);
+        setMeterVerificationUnavailable(false);
 
         const providerData =
-          response.data.data ||
-          response.data;
+          response.data.data || response.data;
 
         const customerName =
           providerData?.customer_name ||
@@ -434,12 +313,8 @@ const ElectricityPurchase = () => {
 
         setMeterDetails({
           ...providerData,
-
-          meterNumber:
-            String(meterNumber),
-
+          meterNumber: String(meterNumber),
           meterType,
-
           customerName,
         });
 
@@ -453,6 +328,7 @@ const ElectricityPurchase = () => {
       }
 
       setMeterVerified(false);
+      setMeterVerificationUnavailable(false);
 
       toast.error(
         response.data?.message ||
@@ -462,111 +338,62 @@ const ElectricityPurchase = () => {
     } catch (error) {
       console.error(
         "Meter verification error:",
-        error.response?.data ||
-          error.message
+        error.response?.data || error.message
       );
 
-      const errorData =
-        error.response?.data;
+      setMeterVerified(false);
+      setMeterVerificationUnavailable(false);
 
-      if (
-        String(meterNumber) ===
-        "1111111111111"
-      ) {
-        setMeterVerified(true);
-
-        setMeterDetails({
-          meterNumber:
-            String(meterNumber),
-
-          meterType,
-
-          customerName:
-            "Sandbox Customer",
-        });
-
-        toast.success(
-          "Sandbox meter verified successfully."
-        );
-      } else {
-        setMeterVerified(false);
-
-        toast.error(
-          errorData?.message ||
-            errorData?.api_response ||
-            "Unable to verify meter."
-        );
-      }
+      toast.error(
+        error.response?.data?.message ||
+          error.response?.data?.api_response ||
+          "Unable to verify meter."
+      );
     } finally {
       setVerifyingMeter(false);
     }
   };
 
-  /*
-   * OPEN TRANSACTION PIN
-   */
   const handlePurchase = async () => {
     try {
       if (!user) {
-        toast.error(
-          "Please log in again."
-        );
+        toast.error("Please log in again.");
         return;
       }
 
       if (!discoName) {
-        toast.error(
-          "Please select an electricity provider."
-        );
+        toast.error("Please select an electricity provider.");
         return;
       }
 
-      if (
-        !meterNumber ||
-        !/^\d{10,15}$/.test(
-          String(meterNumber)
-        )
-      ) {
-        toast.error(
-          "Enter a valid meter number."
-        );
+      if (!meterNumber || !/^\d{10,15}$/.test(String(meterNumber))) {
+        toast.error("Enter a valid meter number.");
+        return;
+      }
+
+      if (!phoneNumber || !/^0\d{10}$/.test(String(phoneNumber))) {
+        toast.error("Enter a valid 11-digit phone number.");
         return;
       }
 
       if (!meterVerified) {
         toast.error(
-          "Please verify your meter first."
+          "Please complete the meter verification step first."
         );
         return;
       }
 
-      if (
-        !Number.isFinite(
-          electricityAmount
-        ) ||
-        electricityAmount <= 0
-      ) {
-        toast.error(
-          "Enter a valid electricity amount."
-        );
+      if (!Number.isFinite(electricityAmount) || electricityAmount <= 0) {
+        toast.error("Enter a valid electricity amount.");
         return;
       }
 
-      if (
-        !Number.isInteger(
-          electricityAmount
-        )
-      ) {
-        toast.error(
-          "Electricity amount must be a whole number."
-        );
+      if (!Number.isInteger(electricityAmount)) {
+        toast.error("Electricity amount must be a whole number.");
         return;
       }
 
-      if (
-        walletBalance <
-        sellingPrice
-      ) {
+      if (walletBalance < sellingPrice) {
         toast.error(
           `Insufficient wallet balance. You need ₦${sellingPrice.toLocaleString()}.`
         );
@@ -583,149 +410,115 @@ const ElectricityPurchase = () => {
     }
   };
 
-  /*
-   * ACTUAL ELECTRICITY PURCHASE
-   */
-  const submitElectricityPurchase =
-    async () => {
-      if (!user) {
-        toast.error(
-          "Please log in again."
+  const submitElectricityPurchase = async () => {
+    if (!user) {
+      toast.error("Please log in again.");
+      return;
+    }
+
+    if (!/^\d{4}$/.test(transactionPin)) {
+      toast.error("Enter your 4-digit transaction PIN.");
+      return;
+    }
+
+    try {
+      setPurchasing(true);
+      setPurchaseResult(null);
+
+      const token = await user.getIdToken();
+
+      const response = await axios.post(
+        `${apiUrl}/api/vtu/buy-electricity`,
+        {
+          discoName,
+          meterNumber: String(meterNumber),
+          meterType,
+          phone: String(phoneNumber),
+          amount: electricityAmount,
+          transactionPin,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log(
+        "ELECTRICITY PURCHASE RESPONSE:",
+        response.data
+      );
+
+      if (response.data?.success === true) {
+        setPurchaseResult(response.data);
+
+        toast.success("Electricity purchase successful.");
+
+        setAmount("");
+        setShowPinModal(false);
+        setTransactionPin("");
+
+        setMeterVerified(false);
+        setMeterVerificationUnavailable(false);
+        setMeterDetails(null);
+      } else if (response.data?.pending) {
+        toast.info(
+          response.data.message ||
+            "Your electricity purchase is being processed. Please do not purchase again."
         );
+
+        setPurchaseResult(response.data);
+
+        setShowPinModal(false);
+        setTransactionPin("");
+      } else {
+        toast.error(
+          response.data?.message ||
+            response.data?.api_response ||
+            "Electricity purchase failed."
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Electricity purchase error:",
+        error.response?.data || error.message
+      );
+
+      const data = error.response?.data;
+
+      if (error.response?.status === 401) {
+        toast.error(
+          data?.message || "Incorrect transaction PIN."
+        );
+
+        setTransactionPin("");
         return;
       }
 
-      if (
-        !/^\d{4}$/.test(
-          transactionPin
-        )
-      ) {
+      if (data?.pending) {
+        toast.info(
+          data.message ||
+            "Your electricity purchase is still being processed. Please do not purchase again."
+        );
+
+        setPurchaseResult(data);
+        setShowPinModal(false);
+        setTransactionPin("");
+      } else {
         toast.error(
-          "Enter your 4-digit transaction PIN."
+          data?.message ||
+            data?.api_response ||
+            "Unable to process electricity purchase."
         );
-        return;
+
+        setShowPinModal(false);
+        setTransactionPin("");
       }
+    } finally {
+      setPurchasing(false);
+    }
+  };
 
-      try {
-        setPurchasing(true);
-        setPurchaseResult(null);
-
-        const token =
-          await user.getIdToken();
-
-        const response =
-          await axios.post(
-            `${apiUrl}/api/vtu/buy-electricity`,
-            {
-              discoName,
-              meterNumber:
-                String(meterNumber),
-              meterType,
-              amount:
-                electricityAmount,
-              transactionPin,
-            },
-            {
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-              },
-            }
-          );
-
-        console.log(
-          "ELECTRICITY PURCHASE RESPONSE:",
-          response.data
-        );
-
-        if (
-          response.data?.success === true
-        ) {
-          setPurchaseResult(
-            response.data
-          );
-
-          toast.success(
-            "Electricity purchase successful."
-          );
-
-          setAmount("");
-          setShowPinModal(false);
-          setTransactionPin("");
-        } else if (
-          response.data?.pending
-        ) {
-          toast.info(
-            response.data.message ||
-              "Your electricity purchase is being processed. Please do not purchase again."
-          );
-
-          setPurchaseResult(
-            response.data
-          );
-
-          setShowPinModal(false);
-          setTransactionPin("");
-        } else {
-          toast.error(
-            response.data?.message ||
-              response.data?.api_response ||
-              "Electricity purchase failed."
-          );
-        }
-      } catch (error) {
-        console.error(
-          "Electricity purchase error:",
-          error.response?.data ||
-            error.message
-        );
-
-        const data =
-          error.response?.data;
-
-        /*
-         * Wrong PIN
-         * Keep popup open so user can retry.
-         */
-        if (
-          error.response?.status === 401
-        ) {
-          toast.error(
-            data?.message ||
-              "Incorrect transaction PIN."
-          );
-
-          setTransactionPin("");
-          return;
-        }
-
-        if (data?.pending) {
-          toast.info(
-            data.message ||
-              "Your electricity purchase is still being processed. Please do not purchase again."
-          );
-
-          setPurchaseResult(data);
-          setShowPinModal(false);
-          setTransactionPin("");
-        } else {
-          toast.error(
-            data?.message ||
-              data?.api_response ||
-              "Unable to process electricity purchase."
-          );
-
-          setShowPinModal(false);
-          setTransactionPin("");
-        }
-      } finally {
-        setPurchasing(false);
-      }
-    };
-
-  /*
-   * CLOSE PIN MODAL
-   */
   const closePinModal = () => {
     if (purchasing) {
       return;
@@ -756,13 +549,7 @@ const ElectricityPurchase = () => {
           margin: "0 auto",
         }}
       >
-        {/* HEADER */}
-
-        <div
-          style={{
-            marginBottom: "25px",
-          }}
-        >
+        <div style={{ marginBottom: "25px" }}>
           <div
             style={{
               color: "#2563eb",
@@ -793,12 +580,9 @@ const ElectricityPurchase = () => {
               fontSize: "15px",
             }}
           >
-            Pay your electricity bill quickly
-            and securely.
+            Pay your electricity bill quickly and securely.
           </p>
         </div>
-
-        {/* WALLET */}
 
         <div
           style={{
@@ -817,8 +601,7 @@ const ElectricityPurchase = () => {
               fontSize: "12px",
               opacity: 0.75,
               marginBottom: "5px",
-              textTransform:
-                "uppercase",
+              textTransform: "uppercase",
               letterSpacing: "1px",
             }}
           >
@@ -831,12 +614,9 @@ const ElectricityPurchase = () => {
               fontWeight: "800",
             }}
           >
-            ₦
-            {walletBalance.toLocaleString()}
+            ₦{walletBalance.toLocaleString()}
           </div>
         </div>
-
-        {/* MAIN CARD */}
 
         <div
           style={{
@@ -849,13 +629,7 @@ const ElectricityPurchase = () => {
               "1px solid rgba(226, 232, 240, 0.8)",
           }}
         >
-          {/* PROVIDER */}
-
-          <div
-            style={{
-              marginBottom: "24px",
-            }}
-          >
+          <div style={{ marginBottom: "24px" }}>
             <label
               style={{
                 display: "block",
@@ -870,9 +644,7 @@ const ElectricityPurchase = () => {
 
             <select
               value={discoName}
-              onChange={
-                handleProviderChange
-              }
+              onChange={handleProviderChange}
               disabled={
                 loadingProviders ||
                 providers.length === 0
@@ -881,8 +653,7 @@ const ElectricityPurchase = () => {
                 width: "100%",
                 height: "55px",
                 borderRadius: "14px",
-                border:
-                  "1px solid #dbe3ef",
+                border: "1px solid #dbe3ef",
                 padding: "0 15px",
                 background: "#f8fafc",
                 color: "#0f172a",
@@ -898,48 +669,18 @@ const ElectricityPurchase = () => {
                   : "Select electricity provider"}
               </option>
 
-              {providers.map(
-                (
-                  provider,
-                  index
-                ) => (
-                  <option
-                    key={
-                      provider.id ||
-                      index
-                    }
-                    value={
-                      provider.value
-                    }
-                  >
-                    {provider.name}
-                  </option>
-                )
-              )}
-            </select>
-
-            {!loadingProviders &&
-              providers.length > 0 && (
-                <div
-                  style={{
-                    marginTop: "7px",
-                    color: "#94a3b8",
-                    fontSize: "12px",
-                  }}
+              {providers.map((provider, index) => (
+                <option
+                  key={provider.id || index}
+                  value={provider.value}
                 >
-                  {providers.length} providers
-                  available
-                </div>
-              )}
+                  {provider.name}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* METER TYPE */}
-
-          <div
-            style={{
-              marginBottom: "24px",
-            }}
-          >
+          <div style={{ marginBottom: "24px" }}>
             <label
               style={{
                 display: "block",
@@ -955,8 +696,7 @@ const ElectricityPurchase = () => {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns:
-                  "1fr 1fr",
+                gridTemplateColumns: "1fr 1fr",
                 gap: "12px",
               }}
             >
@@ -973,29 +713,18 @@ const ElectricityPurchase = () => {
                 },
               ].map((item) => {
                 const active =
-                  meterType ===
-                  item.value;
+                  meterType === item.value;
 
                 return (
                   <button
                     key={item.value}
                     type="button"
                     onClick={() => {
-                      setMeterType(
-                        item.value
-                      );
-
-                      setMeterVerified(
-                        false
-                      );
-
-                      setMeterDetails(
-                        null
-                      );
-
-                      setPurchaseResult(
-                        null
-                      );
+                      setMeterType(item.value);
+                      setMeterVerified(false);
+                      setMeterVerificationUnavailable(false);
+                      setMeterDetails(null);
+                      setPurchaseResult(null);
                     }}
                     style={{
                       padding: "15px",
@@ -1030,13 +759,7 @@ const ElectricityPurchase = () => {
             </div>
           </div>
 
-          {/* METER NUMBER */}
-
-          <div
-            style={{
-              marginBottom: "15px",
-            }}
-          >
+          <div style={{ marginBottom: "15px" }}>
             <label
               style={{
                 display: "block",
@@ -1053,17 +776,14 @@ const ElectricityPurchase = () => {
               type="text"
               placeholder="Enter meter number"
               value={meterNumber}
-              onChange={
-                handleMeterNumberChange
-              }
+              onChange={handleMeterNumberChange}
               maxLength="15"
               style={{
                 width: "100%",
                 boxSizing: "border-box",
                 height: "55px",
                 borderRadius: "14px",
-                border:
-                  "1px solid #dbe3ef",
+                border: "1px solid #dbe3ef",
                 padding: "0 15px",
                 background: "#f8fafc",
                 color: "#0f172a",
@@ -1073,13 +793,54 @@ const ElectricityPurchase = () => {
             />
           </div>
 
-          {/* VERIFY */}
+          <div style={{ marginBottom: "15px" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "10px",
+                color: "#334155",
+                fontSize: "14px",
+                fontWeight: "700",
+              }}
+            >
+              Phone Number
+            </label>
+
+            <input
+              type="tel"
+              inputMode="numeric"
+              placeholder="08012345678"
+              value={phoneNumber}
+              onChange={handlePhoneNumberChange}
+              maxLength="11"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                height: "55px",
+                borderRadius: "14px",
+                border: "1px solid #dbe3ef",
+                padding: "0 15px",
+                background: "#f8fafc",
+                color: "#0f172a",
+                fontSize: "15px",
+                outline: "none",
+              }}
+            />
+
+            <div
+              style={{
+                marginTop: "7px",
+                color: "#94a3b8",
+                fontSize: "12px",
+              }}
+            >
+              This number is used to process your electricity payment.
+            </div>
+          </div>
 
           <button
             type="button"
-            onClick={
-              handleVerifyMeter
-            }
+            onClick={handleVerifyMeter}
             disabled={
               verifyingMeter ||
               !discoName ||
@@ -1089,8 +850,7 @@ const ElectricityPurchase = () => {
               width: "100%",
               height: "50px",
               borderRadius: "14px",
-              border:
-                "1px solid #2563eb",
+              border: "1px solid #2563eb",
               background:
                 verifyingMeter ||
                 !discoName ||
@@ -1113,106 +873,115 @@ const ElectricityPurchase = () => {
               marginBottom: "20px",
             }}
           >
-            {verifyingMeter
-              ? "Verifying meter..."
-              : "✓ Verify Meter"}
+            {verifyingMeter ? "Checking..." : "✓ Check Meter"}
           </button>
 
-          {/* VERIFIED CUSTOMER */}
-
-          {meterVerified &&
-            meterDetails && (
+          {meterVerified && meterDetails && (
+            <div
+              style={{
+                background:
+                  meterVerificationUnavailable
+                    ? "linear-gradient(135deg, #eff6ff, #f0f9ff)"
+                    : "linear-gradient(135deg, #ecfdf5, #f0fdf4)",
+                border:
+                  meterVerificationUnavailable
+                    ? "1px solid #bfdbfe"
+                    : "1px solid #bbf7d0",
+                borderRadius: "18px",
+                padding: "20px",
+                marginBottom: "24px",
+              }}
+            >
               <div
                 style={{
-                  background:
-                    "linear-gradient(135deg, #ecfdf5, #f0fdf4)",
-                  border:
-                    "1px solid #bbf7d0",
-                  borderRadius: "18px",
-                  padding: "20px",
-                  marginBottom: "24px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginBottom: "12px",
                 }}
               >
                 <div
                   style={{
+                    width: "38px",
+                    height: "38px",
+                    borderRadius: "50%",
+                    background:
+                      meterVerificationUnavailable
+                        ? "#2563eb"
+                        : "#16a34a",
+                    color: "#ffffff",
                     display: "flex",
                     alignItems: "center",
-                    gap: "10px",
-                    marginBottom: "12px",
+                    justifyContent: "center",
+                    fontWeight: "800",
                   }}
                 >
+                  {meterVerificationUnavailable ? "i" : "✓"}
+                </div>
+
+                <div>
                   <div
                     style={{
-                      width: "38px",
-                      height: "38px",
-                      borderRadius: "50%",
-                      background: "#16a34a",
-                      color: "#ffffff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: "800",
+                      color:
+                        meterVerificationUnavailable
+                          ? "#1d4ed8"
+                          : "#166534",
+                      fontSize: "12px",
+                      fontWeight: "700",
+                      textTransform: "uppercase",
                     }}
                   >
-                    ✓
+                    {meterVerificationUnavailable
+                      ? "Verification unavailable"
+                      : "Meter verified"}
                   </div>
 
-                  <div>
-                    <div
-                      style={{
-                        color: "#166534",
-                        fontSize: "12px",
-                        fontWeight: "700",
-                        textTransform:
-                          "uppercase",
-                      }}
-                    >
-                      Meter verified
-                    </div>
-
-                    <strong
-                      style={{
-                        color: "#14532d",
-                        fontSize: "16px",
-                      }}
-                    >
-                      {verifiedCustomerName ||
+                  <strong
+                    style={{
+                      color:
+                        meterVerificationUnavailable
+                          ? "#1e3a8a"
+                          : "#14532d",
+                      fontSize: "16px",
+                    }}
+                  >
+                    {meterVerificationUnavailable
+                      ? "Meter will be validated during purchase"
+                      : verifiedCustomerName ||
                         "Verified Customer"}
-                    </strong>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    color: "#475569",
-                    fontSize: "13px",
-                    lineHeight: "1.8",
-                  }}
-                >
-                  <div>
-                    <strong>
-                      Meter:
-                    </strong>{" "}
-                    {meterNumber}
-                  </div>
-
-                  <div>
-                    <strong>
-                      Type:
-                    </strong>{" "}
-                    {meterType}
-                  </div>
+                  </strong>
                 </div>
               </div>
-            )}
 
-          {/* AMOUNT */}
+              <div
+                style={{
+                  color: "#475569",
+                  fontSize: "13px",
+                  lineHeight: "1.8",
+                }}
+              >
+                <div>
+                  <strong>Meter:</strong>{" "}
+                  {meterNumber}
+                </div>
 
-          <div
-            style={{
-              marginBottom: "18px",
-            }}
-          >
+                <div>
+                  <strong>Type:</strong>{" "}
+                  {meterType}
+                </div>
+
+                {meterVerificationUnavailable && (
+                  <div style={{ marginTop: "8px" }}>
+                    This provider does not currently expose meter
+                    verification. Your meter will be checked when the
+                    electricity purchase is submitted.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginBottom: "18px" }}>
             <label
               style={{
                 display: "block",
@@ -1225,18 +994,13 @@ const ElectricityPurchase = () => {
               Amount
             </label>
 
-            <div
-              style={{
-                position: "relative",
-              }}
-            >
+            <div style={{ position: "relative" }}>
               <span
                 style={{
                   position: "absolute",
                   left: "15px",
                   top: "50%",
-                  transform:
-                    "translateY(-50%)",
+                  transform: "translateY(-50%)",
                   color: "#64748b",
                   fontWeight: "700",
                 }}
@@ -1246,25 +1010,18 @@ const ElectricityPurchase = () => {
 
               <input
                 type="number"
-                placeholder="Enter amount"
+                placeholder="Enter amount (minimum ₦1,000)"
                 value={amount}
-                onChange={(e) =>
-                  setAmount(
-                    e.target.value
-                  )
-                }
-                min="1"
+                onChange={(e) => setAmount(e.target.value)}
+                min="1000"
                 step="1"
                 style={{
                   width: "100%",
-                  boxSizing:
-                    "border-box",
+                  boxSizing: "border-box",
                   height: "55px",
                   borderRadius: "14px",
-                  border:
-                    "1px solid #dbe3ef",
-                  padding:
-                    "0 15px 0 38px",
+                  border: "1px solid #dbe3ef",
+                  padding: "0 15px 0 38px",
                   background: "#f8fafc",
                   color: "#0f172a",
                   fontSize: "16px",
@@ -1274,8 +1031,6 @@ const ElectricityPurchase = () => {
             </div>
           </div>
 
-          {/* PRICE SUMMARY */}
-
           {electricityAmount > 0 && (
             <div
               style={{
@@ -1284,66 +1039,51 @@ const ElectricityPurchase = () => {
                 borderRadius: "18px",
                 padding: "20px",
                 marginBottom: "20px",
-                border:
-                  "1px solid #dbeafe",
+                border: "1px solid #dbeafe",
               }}
             >
               <div
                 style={{
                   display: "flex",
-                  justifyContent:
-                    "space-between",
+                  justifyContent: "space-between",
                   marginBottom: "10px",
                   color: "#64748b",
                   fontSize: "14px",
                 }}
               >
-                <span>
-                  Electricity
-                </span>
+                <span>Electricity</span>
 
                 <span>
-                  ₦
-                  {electricityAmount.toLocaleString()}
+                  ₦{electricityAmount.toLocaleString()}
                 </span>
               </div>
 
               <div
                 style={{
                   display: "flex",
-                  justifyContent:
-                    "space-between",
+                  justifyContent: "space-between",
                   marginBottom: "14px",
                   color: "#64748b",
                   fontSize: "14px",
                 }}
               >
-                <span>
-                  Service charge
-                </span>
+                <span>Service charge</span>
 
                 <span>
-                  ₦
-                  {ELECTRICITY_MARKUP.toLocaleString()}
+                  ₦{ELECTRICITY_MARKUP.toLocaleString()}
                 </span>
               </div>
 
               <div
                 style={{
-                  borderTop:
-                    "1px solid #dbeafe",
+                  borderTop: "1px solid #dbeafe",
                   paddingTop: "14px",
                   display: "flex",
-                  justifyContent:
-                    "space-between",
+                  justifyContent: "space-between",
                   alignItems: "center",
                 }}
               >
-                <strong
-                  style={{
-                    color: "#0f172a",
-                  }}
-                >
+                <strong style={{ color: "#0f172a" }}>
                   Total
                 </strong>
 
@@ -1353,14 +1093,11 @@ const ElectricityPurchase = () => {
                     fontSize: "24px",
                   }}
                 >
-                  ₦
-                  {sellingPrice.toLocaleString()}
+                  ₦{sellingPrice.toLocaleString()}
                 </strong>
               </div>
             </div>
           )}
-
-          {/* WALLET CHECK */}
 
           {electricityAmount > 0 && (
             <div
@@ -1369,43 +1106,34 @@ const ElectricityPurchase = () => {
                 padding: "14px 16px",
                 borderRadius: "14px",
                 background:
-                  walletBalance >=
-                  sellingPrice
+                  walletBalance >= sellingPrice
                     ? "#f0fdf4"
                     : "#fff7ed",
                 color:
-                  walletBalance >=
-                  sellingPrice
+                  walletBalance >= sellingPrice
                     ? "#166534"
                     : "#9a3412",
                 fontSize: "13px",
                 fontWeight: "600",
               }}
             >
-              {walletBalance >=
-              sellingPrice
+              {walletBalance >= sellingPrice
                 ? "✓ You have enough wallet balance for this purchase."
                 : `You need ₦${(
-                    sellingPrice -
-                    walletBalance
+                    sellingPrice - walletBalance
                   ).toLocaleString()} more in your wallet.`}
             </div>
           )}
 
-          {/* PURCHASE */}
-
           {electricityAmount > 0 && (
             <button
               type="button"
-              onClick={
-                handlePurchase
-              }
+              onClick={handlePurchase}
               disabled={
                 purchasing ||
                 !user ||
                 !meterVerified ||
-                walletBalance <
-                  sellingPrice
+                walletBalance < sellingPrice
               }
               style={{
                 width: "100%",
@@ -1416,8 +1144,7 @@ const ElectricityPurchase = () => {
                   purchasing ||
                   !user ||
                   !meterVerified ||
-                  walletBalance <
-                    sellingPrice
+                  walletBalance < sellingPrice
                     ? "#cbd5e1"
                     : "linear-gradient(135deg, #2563eb, #1d4ed8)",
                 color: "#ffffff",
@@ -1427,18 +1154,9 @@ const ElectricityPurchase = () => {
                   purchasing ||
                   !user ||
                   !meterVerified ||
-                  walletBalance <
-                    sellingPrice
+                  walletBalance < sellingPrice
                     ? "not-allowed"
                     : "pointer",
-                boxShadow:
-                  purchasing ||
-                  !user ||
-                  !meterVerified ||
-                  walletBalance <
-                    sellingPrice
-                    ? "none"
-                    : "0 10px 25px rgba(37, 99, 235, 0.25)",
               }}
             >
               {purchasing
@@ -1447,22 +1165,18 @@ const ElectricityPurchase = () => {
             </button>
           )}
 
-          {/* PURCHASE RESULT */}
-
           {purchaseResult && (
             <div
               style={{
                 marginTop: "25px",
                 borderRadius: "20px",
                 padding: "22px",
-                background:
-                  purchaseResult.success
-                    ? "linear-gradient(135deg, #ecfdf5, #f0fdf4)"
-                    : "linear-gradient(135deg, #fff7ed, #fffbeb)",
-                border:
-                  purchaseResult.success
-                    ? "1px solid #bbf7d0"
-                    : "1px solid #fed7aa",
+                background: purchaseResult.success
+                  ? "linear-gradient(135deg, #ecfdf5, #f0fdf4)"
+                  : "linear-gradient(135deg, #fff7ed, #fffbeb)",
+                border: purchaseResult.success
+                  ? "1px solid #bbf7d0"
+                  : "1px solid #fed7aa",
               }}
             >
               {purchaseResult.success ? (
@@ -1480,14 +1194,11 @@ const ElectricityPurchase = () => {
                         width: "42px",
                         height: "42px",
                         borderRadius: "50%",
-                        background:
-                          "#16a34a",
+                        background: "#16a34a",
                         color: "#ffffff",
                         display: "flex",
-                        alignItems:
-                          "center",
-                        justifyContent:
-                          "center",
+                        alignItems: "center",
+                        justifyContent: "center",
                         fontSize: "20px",
                         fontWeight: "800",
                       }}
@@ -1498,12 +1209,9 @@ const ElectricityPurchase = () => {
                     <div>
                       <strong
                         style={{
-                          display:
-                            "block",
-                          color:
-                            "#166534",
-                          fontSize:
-                            "17px",
+                          display: "block",
+                          color: "#166534",
+                          fontSize: "17px",
                         }}
                       >
                         Electricity Purchase Successful
@@ -1511,14 +1219,11 @@ const ElectricityPurchase = () => {
 
                       <span
                         style={{
-                          color:
-                            "#64748b",
-                          fontSize:
-                            "12px",
+                          color: "#64748b",
+                          fontSize: "12px",
                         }}
                       >
-                        Your electricity payment
-                        was processed.
+                        Your electricity payment was processed.
                       </span>
                     </div>
                   </div>
@@ -1531,79 +1236,57 @@ const ElectricityPurchase = () => {
                     }}
                   >
                     <div>
-                      <strong>
-                        Amount:
-                      </strong>{" "}
+                      <strong>Amount:</strong>{" "}
                       ₦
                       {Number(
-                        purchaseResult.amount ||
-                          sellingPrice
+                        purchaseResult.amount || sellingPrice
                       ).toLocaleString()}
                     </div>
 
                     <div>
-                      <strong>
-                        Meter:
-                      </strong>{" "}
-                      {purchaseResult.meterNumber ||
-                        meterNumber}
+                      <strong>Meter:</strong>{" "}
+                      {purchaseResult.meterNumber || meterNumber}
                     </div>
 
                     <div>
-                      <strong>
-                        Type:
-                      </strong>{" "}
-                      {purchaseResult.meterType ||
-                        meterType}
+                      <strong>Type:</strong>{" "}
+                      {purchaseResult.meterType || meterType}
                     </div>
 
                     {purchaseResult.providerReference && (
                       <div>
-                        <strong>
-                          Provider Reference:
-                        </strong>{" "}
-                        {
-                          purchaseResult.providerReference
-                        }
+                        <strong>Provider Reference:</strong>{" "}
+                        {purchaseResult.providerReference}
                       </div>
                     )}
 
                     {purchaseResult.providerTransactionId && (
                       <div>
-                        <strong>
-                          Transaction ID:
-                        </strong>{" "}
-                        {
-                          purchaseResult.providerTransactionId
-                        }
+                        <strong>Transaction ID:</strong>{" "}
+                        {purchaseResult.providerTransactionId}
                       </div>
                     )}
                   </div>
 
                   {(purchaseResult.token ||
-                    purchaseResult.electricitytoken) && (
+                    purchaseResult.electricitytoken ||
+                    purchaseResult.data?.token) && (
                     <div
                       style={{
                         marginTop: "18px",
                         padding: "18px",
                         borderRadius: "15px",
-                        background:
-                          "#ffffff",
-                        border:
-                          "1px solid #bbf7d0",
+                        background: "#ffffff",
+                        border: "1px solid #bbf7d0",
                       }}
                     >
                       <div
                         style={{
                           fontSize: "11px",
-                          color:
-                            "#64748b",
-                          fontWeight:
-                            "700",
-                          textTransform:
-                            "uppercase",
-                          marginBottom:
-                            "6px",
+                          color: "#64748b",
+                          fontWeight: "700",
+                          textTransform: "uppercase",
+                          marginBottom: "6px",
                         }}
                       >
                         Electricity Token
@@ -1612,17 +1295,27 @@ const ElectricityPurchase = () => {
                       <div
                         style={{
                           fontSize: "20px",
-                          fontWeight:
-                            "800",
-                          color:
-                            "#166534",
-                          wordBreak:
-                            "break-word",
+                          fontWeight: "800",
+                          color: "#166534",
+                          wordBreak: "break-word",
                         }}
                       >
                         {purchaseResult.token ||
-                          purchaseResult.electricitytoken}
+                          purchaseResult.electricitytoken ||
+                          purchaseResult.data?.token}
                       </div>
+                    </div>
+                  )}
+
+                  {purchaseResult.units && (
+                    <div
+                      style={{
+                        marginTop: "12px",
+                        color: "#166534",
+                        fontWeight: "700",
+                      }}
+                    >
+                      Units: {purchaseResult.units}
                     </div>
                   )}
                 </>
@@ -1659,10 +1352,7 @@ const ElectricityPurchase = () => {
                         fontSize: "12px",
                       }}
                     >
-                      Order ID:{" "}
-                      {
-                        purchaseResult.orderId
-                      }
+                      Order ID: {purchaseResult.orderId}
                     </div>
                   )}
                 </>
@@ -1670,101 +1360,14 @@ const ElectricityPurchase = () => {
             </div>
           )}
         </div>
-
-        {/* TRUST CARDS */}
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(3, 1fr)",
-            gap: "15px",
-            marginTop: "20px",
-          }}
-        >
-          {[
-            {
-              icon: "⚡",
-              title: "Fast",
-              text: "Quick processing",
-            },
-            {
-              icon: "🔒",
-              title: "Secure",
-              text: "PIN protected payments",
-            },
-            {
-              icon: "✓",
-              title: "Reliable",
-              text: "Trusted service",
-            },
-          ].map((item) => (
-            <div
-              key={item.title}
-              style={{
-                background: "#ffffff",
-                borderRadius: "18px",
-                padding: "18px",
-                textAlign: "center",
-                boxShadow:
-                  "0 8px 25px rgba(15, 23, 42, 0.05)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "23px",
-                  marginBottom: "7px",
-                }}
-              >
-                {item.icon}
-              </div>
-
-              <strong
-                style={{
-                  display: "block",
-                  color: "#0f172a",
-                  fontSize: "14px",
-                }}
-              >
-                {item.title}
-              </strong>
-
-              <span
-                style={{
-                  color: "#64748b",
-                  fontSize: "12px",
-                }}
-              >
-                {item.text}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* SANDBOX */}
-
-        <div
-          style={{
-            textAlign: "center",
-            marginTop: "18px",
-            color: "#94a3b8",
-            fontSize: "11px",
-          }}
-        >
-          Sandbox mode — testing environment.
-          Meter: 1111111111111
-        </div>
       </div>
-
-      {/* TRANSACTION PIN MODAL */}
 
       {showPinModal && (
         <div
           style={{
             position: "fixed",
             inset: 0,
-            background:
-              "rgba(15, 23, 42, 0.60)",
+            background: "rgba(15, 23, 42, 0.60)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -1798,8 +1401,7 @@ const ElectricityPurchase = () => {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  margin:
-                    "0 auto 14px",
+                  margin: "0 auto 14px",
                   fontSize: "26px",
                 }}
               >
@@ -1819,16 +1421,13 @@ const ElectricityPurchase = () => {
 
               <p
                 style={{
-                  margin:
-                    "8px 0 0",
+                  margin: "8px 0 0",
                   color: "#64748b",
                   fontSize: "13px",
                   lineHeight: "1.5",
                 }}
               >
-                Enter your 4-digit PIN
-                to authorize this
-                electricity payment.
+                Enter your 4-digit PIN to authorize this electricity payment.
               </p>
             </div>
 
@@ -1843,8 +1442,7 @@ const ElectricityPurchase = () => {
                 fontSize: "13px",
               }}
             >
-              Pay ₦
-              {sellingPrice.toLocaleString()}
+              Pay ₦{sellingPrice.toLocaleString()}
             </div>
 
             <input
@@ -1855,17 +1453,13 @@ const ElectricityPurchase = () => {
               value={transactionPin}
               onChange={(e) =>
                 setTransactionPin(
-                  e.target.value.replace(
-                    /\D/g,
-                    ""
-                  )
+                  e.target.value.replace(/\D/g, "")
                 )
               }
               onKeyDown={(e) => {
                 if (
                   e.key === "Enter" &&
-                  transactionPin.length ===
-                    4 &&
+                  transactionPin.length === 4 &&
                   !purchasing
                 ) {
                   submitElectricityPurchase();
@@ -1875,11 +1469,9 @@ const ElectricityPurchase = () => {
               style={{
                 width: "100%",
                 height: "58px",
-                boxSizing:
-                  "border-box",
+                boxSizing: "border-box",
                 borderRadius: "14px",
-                border:
-                  "1px solid #dbe3ef",
+                border: "1px solid #dbe3ef",
                 background: "#f8fafc",
                 textAlign: "center",
                 fontSize: "25px",
@@ -1891,13 +1483,10 @@ const ElectricityPurchase = () => {
 
             <button
               type="button"
-              onClick={
-                submitElectricityPurchase
-              }
+              onClick={submitElectricityPurchase}
               disabled={
                 purchasing ||
-                transactionPin.length !==
-                  4
+                transactionPin.length !== 4
               }
               style={{
                 width: "100%",
@@ -1907,8 +1496,7 @@ const ElectricityPurchase = () => {
                 borderRadius: "14px",
                 background:
                   purchasing ||
-                  transactionPin.length !==
-                    4
+                  transactionPin.length !== 4
                     ? "#cbd5e1"
                     : "linear-gradient(135deg, #2563eb, #1d4ed8)",
                 color: "#ffffff",
@@ -1916,8 +1504,7 @@ const ElectricityPurchase = () => {
                 fontWeight: "800",
                 cursor:
                   purchasing ||
-                  transactionPin.length !==
-                    4
+                  transactionPin.length !== 4
                     ? "not-allowed"
                     : "pointer",
               }}
@@ -1929,17 +1516,14 @@ const ElectricityPurchase = () => {
 
             <button
               type="button"
-              onClick={
-                closePinModal
-              }
+              onClick={closePinModal}
               disabled={purchasing}
               style={{
                 width: "100%",
                 height: "48px",
                 marginTop: "10px",
                 border: "none",
-                background:
-                  "transparent",
+                background: "transparent",
                 color: "#64748b",
                 fontSize: "14px",
                 fontWeight: "700",
@@ -1950,18 +1534,6 @@ const ElectricityPurchase = () => {
             >
               Cancel
             </button>
-
-            <div
-              style={{
-                textAlign: "center",
-                marginTop: "10px",
-                color: "#94a3b8",
-                fontSize: "11px",
-              }}
-            >
-              🔒 Secure Transaction PIN
-              verification
-            </div>
           </div>
         </div>
       )}

@@ -108,16 +108,7 @@ const AirtimePurchase = () => {
       return;
     }
 
-    if (
-      process.env.NODE_ENV !==
-        "production" &&
-      phone !== "08011111111"
-    ) {
-      toast.error(
-        "Sandbox testing uses 08011111111."
-      );
-      return;
-    }
+    
 
     const airtimeAmount =
       Number(amount);
@@ -599,19 +590,7 @@ const AirtimePurchase = () => {
               />
             </div>
 
-            <div
-              style={{
-                marginTop:
-                  "7px",
-                color:
-                  "#8A99AD",
-                fontSize:
-                  "11px",
-              }}
-            >
-              Sandbox testing uses
-              08011111111.
-            </div>
+            
           </div>
 
           {/* Amount */}

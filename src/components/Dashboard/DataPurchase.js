@@ -165,16 +165,7 @@ const DataPurchase = () => {
       return;
     }
 
-    if (
-      process.env.NODE_ENV !==
-        "production" &&
-      phone !== "08011111111"
-    ) {
-      toast.error(
-        "Sandbox testing uses 08011111111."
-      );
-      return;
-    }
+    
 
     if (!selectedPlan) {
       toast.error(
@@ -578,16 +569,7 @@ const DataPurchase = () => {
               />
             </div>
 
-            <div
-              style={{
-                marginTop: "8px",
-                color: "#94a3b8",
-                fontSize: "12px",
-              }}
-            >
-              Sandbox testing uses
-              08011111111.
-            </div>
+            
           </div>
 
           <div
@@ -861,7 +843,7 @@ const DataPurchase = () => {
                     }}
                   >
                     {
-                      selectedPlanData.duration
+                      selectedPlanData.validity
                     }{" "}
                     day
                     {String(

@@ -115,20 +115,54 @@ async function purchaseCheapDataHubAirtime({
 }) {
   const providerId = getCheapDataHubProviderId(network);
 
-  const response = await axios.post(
-    `${CHEAPDATAHUB_BASE_URL}/airtime/purchase/`,
-    {
-      provider_id: providerId,
-      phone_number: mobileNumber,
-      amount: Number(amount),
-    },
-    {
-      headers: getCheapDataHubHeaders(),
-      timeout: 30000,
-    }
+  const payload = {
+    provider_id: providerId,
+    phone_number: mobileNumber,
+    amount: Number(amount),
+  };
+
+  console.log("CheapDataHub airtime request:", {
+    provider_id: providerId,
+    phone_number: mobileNumber,
+    amount: Number(amount),
+  });
+
+  try {
+    const response = await axios.post(
+      `${CHEAPDATAHUB_BASE_URL}/airtime/purchase/`,
+      payload,
+      {
+        headers: getCheapDataHubHeaders(),
+        timeout: 30000,
+      }
+    );
+
+    console.log(
+      "CheapDataHub airtime response:",
+      response.data
+    );
+
+    return response.data;
+  }  catch (error) {
+  const providerResponse =
+    error.response?.data || null;
+
+  console.error(
+    "CheapDataHub airtime HTTP error:",
+    providerResponse || error.message
   );
 
-  return response.data;
+  const wrappedError = new Error(
+    providerResponse?.message ||
+      error.message ||
+      "CheapDataHub airtime purchase failed"
+  );
+
+  wrappedError.providerResponse =
+    providerResponse;
+
+  throw wrappedError;
+}
 }
 
 async function purchaseAirtime({

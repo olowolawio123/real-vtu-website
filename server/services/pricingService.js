@@ -1,5 +1,5 @@
 const DATA_MARKUP = 50;
-const ELECTRICITY_MARKUP = 50;
+const ELECTRICITY_MARKUP = 150;
 
 function calculateDataPrice(providerPlan) {
   const providerCost = Number(
